@@ -46,11 +46,10 @@ A terminal-based PDF and EPUB reader with fuzzy file search, high-resolution ima
 1. Clone this repository:
 git clone https://github.com/Yujonpradhananga/CLI-PDF-EPUB-reader.git
 cd CLI-PDF-EPUB-reader
-```
-
-2. Run these commands:
 go mod tidy
 go build -o lnreader
+```
+
 ```
 
 ## Dependencies
