@@ -33,11 +33,7 @@ A terminal-based PDF and EPUB reader with fuzzy file search, high-resolution ima
 
 ## Installation
 
-1. Clone this repository:
-```bash
-git clone https://github.com/Yujonpradhananga/CLI-PDF-EPUB-reader.git
-cd CLI-PDF-EPUB-reader
-```
+1. Install the binary from the releases section:
 
 2. Run the binary:
 ```bash
@@ -46,6 +42,13 @@ cd CLI-PDF-EPUB-reader
 
 **Building from source** (optional):
 ```bash
+
+1. Clone this repository:
+git clone https://github.com/Yujonpradhananga/CLI-PDF-EPUB-reader.git
+cd CLI-PDF-EPUB-reader
+```
+
+2. Run these commands:
 go mod download
 go build -o lnreader
 ```
