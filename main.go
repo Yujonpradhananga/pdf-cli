@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,40 +8,38 @@ import (
 )
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Println("╔══════════════════════════════════════════════════╗")
-	fmt.Println("║     Terminal PDF/EPUB Viewer                    ║")
-	fmt.Println("╚══════════════════════════════════════════════════╝")
-	fmt.Println()
-	fmt.Println("Choose an option:")
-	fmt.Println("  1. Search for a file (recommended)")
-	fmt.Println("  2. Enter file path manually")
-	fmt.Println()
-	fmt.Print("Selection (1/2): ")
-
-	choice, _ := reader.ReadString('\n')
-	choice = strings.TrimSpace(choice)
-
 	var filePath string
 	var err error
 
-	switch choice {
-	case "1", "":
-		filePath, err = selectFileWithPicker()
+	// Determine target: argument or current directory
+	arg := "."
+	if len(os.Args) > 1 {
+		arg = os.Args[1]
+	}
+
+	// Expand ~ to home directory
+	if strings.HasPrefix(arg, "~/") {
+		homeDir, _ := os.UserHomeDir()
+		arg = filepath.Join(homeDir, arg[2:])
+	}
+
+	// Check if argument is a directory or file
+	info, statErr := os.Stat(arg)
+	if statErr != nil {
+		fmt.Printf("Path not found: %s\n", arg)
+		return
+	}
+
+	if info.IsDir() {
+		// It's a directory - search within it
+		filePath, err = selectFileWithPickerInDir(arg)
 		if err != nil {
 			fmt.Printf("File selection cancelled: %v\n", err)
 			return
 		}
-	case "2":
-		filePath, err = getFilePathManually(reader)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return
-		}
-	default:
-		fmt.Println("Invalid selection. Exiting.")
-		return
+	} else {
+		// It's a file - use directly
+		filePath = arg
 	}
 
 	if filePath == "" {
@@ -61,8 +58,6 @@ func main() {
 		return
 	}
 
-	fmt.Printf("\nOpening: %s\n", filePath)
-
 	viewer := NewDocumentViewer(filePath)
 	if err := viewer.Open(); err != nil {
 		fmt.Printf("Error opening file: %v\n", err)
@@ -72,35 +67,15 @@ func main() {
 	viewer.Run()
 }
 
-func selectFileWithPicker() (string, error) {
+func selectFileWithPickerInDir(dir string) (string, error) {
 	searcher := NewFileSearcher()
-	if err := searcher.ScanDirectories(); err != nil {
-		return "", fmt.Errorf("error scanning directories: %v", err)
+	if err := searcher.ScanDirectory(dir); err != nil {
+		return "", fmt.Errorf("error scanning directory: %v", err)
 	}
 	allFiles := searcher.GetAllFiles()
 	if len(allFiles) == 0 {
-		return "", fmt.Errorf("no PDF or EPUB files found in common directories")
+		return "", fmt.Errorf("no PDF or EPUB files found in %s", dir)
 	}
 	picker := NewFilePicker(searcher)
 	return picker.Run()
-}
-
-func getFilePathManually(reader *bufio.Reader) (string, error) {
-	fmt.Print("Enter the path to your PDF or EPUB file: ")
-	filePath, _ := reader.ReadString('\n')
-	filePath = strings.TrimSpace(filePath)
-	if filePath == "" {
-		return "", fmt.Errorf("no file path provided")
-	}
-	if (strings.HasPrefix(filePath, "\"") && strings.HasSuffix(filePath, "\"")) ||
-		(strings.HasPrefix(filePath, "'") && strings.HasSuffix(filePath, "'")) {
-		filePath = filePath[1 : len(filePath)-1]
-	}
-	if strings.HasPrefix(filePath, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err == nil {
-			filePath = filepath.Join(homeDir, filePath[2:])
-		}
-	}
-	return filePath, nil
 }

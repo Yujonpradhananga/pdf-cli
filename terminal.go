@@ -52,21 +52,22 @@ func (d *DocumentViewer) detectTerminalType() string {
 
 func (d *DocumentViewer) getTerminalCellSize() (float64, float64) {
 	termType := d.detectTerminalType()
+	// Cell sizes in pixels - tuned for HiDPI/Retina displays
 	switch termType {
 	case "kitty":
-		return 6.0, 13.9
+		return 18.0, 36.0 // HiDPI Kitty
 	case "foot":
 		return 15.0, 25.0
 	case "alacritty":
-		return 7.0, 14.0
+		return 14.0, 28.0
 	case "wezterm":
-		return 9.0, 18.0
+		return 18.0, 36.0
 	case "iterm2":
-		return 8.0, 16.0
+		return 16.0, 32.0
 	case "xterm":
 		return 7.0, 14.0
 	default:
-		return 15.0, 25.0
+		return 15.0, 30.0
 	}
 }
 

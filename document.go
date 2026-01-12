@@ -22,6 +22,7 @@ type DocumentViewer struct {
 	oldState    *term.State
 	fileType    string // "pdf" or "epub"
 	tempDir     string // for storing temporary image files
+	forceMode   string // "", "text", or "image" - override auto-detection
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -184,12 +185,6 @@ func (d *DocumentViewer) Run() {
 	defer d.doc.Close()
 	defer d.cleanup()
 
-	fmt.Printf("Press any key to start reading %s, or 'q' to quit\n", strings.ToUpper(d.fileType))
-	input, _ := d.reader.ReadString('\n')
-	if strings.TrimSpace(input) == "q" {
-		return
-	}
-
 	oldState, err := d.setRawMode()
 	if err != nil {
 		fmt.Printf("Error setting raw mode: %v\n", err)
@@ -237,10 +232,23 @@ func (d *DocumentViewer) handleInput(c byte) bool {
 		d.goToPage()
 	case 'h':
 		d.showHelp()
+	case 't':
+		d.toggleViewMode()
 	case 27: // ESC key - could be arrow keys
 		d.handleArrowKeys()
 	}
 	return false
+}
+
+func (d *DocumentViewer) toggleViewMode() {
+	switch d.forceMode {
+	case "":
+		d.forceMode = "text"
+	case "text":
+		d.forceMode = "image"
+	case "image":
+		d.forceMode = ""
+	}
 }
 
 func (d *DocumentViewer) handleArrowKeys() {

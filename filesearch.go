@@ -75,6 +75,18 @@ func (fs *FileSearcher) ScanDirectories() error {
 	return nil
 }
 
+// ScanDirectory scans a single directory for PDF/EPUB files (quiet mode)
+func (fs *FileSearcher) ScanDirectory(dir string) error {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+
+	files := fs.scanDirectory(absDir, 10)
+	fs.files = files
+	return nil
+}
+
 func (fs *FileSearcher) scanDirectory(dir string, maxDepth int) []string {
 	if maxDepth <= 0 {
 		return nil

@@ -32,6 +32,23 @@ func (d *DocumentViewer) displayCurrentPage() {
 }
 
 func (d *DocumentViewer) getPageContentType(pageNum int) string {
+	// Honor forced mode if set (toggled with 't')
+	if d.forceMode == "text" {
+		return "text"
+	}
+	if d.forceMode == "image" {
+		return "image"
+	}
+
+	// For PDFs, prefer image rendering - it's more faithful to the original
+	// especially for math, diagrams, and formatted content
+	if d.fileType == "pdf" {
+		if d.pageHasVisualContent(pageNum) {
+			return "image"
+		}
+	}
+
+	// For EPUBs or PDFs without visual content, use text-based logic
 	text, err := d.doc.Text(pageNum)
 	hasText := err == nil && len(strings.Fields(strings.TrimSpace(text))) >= 3
 	textWordCount := 0
@@ -177,11 +194,15 @@ func (d *DocumentViewer) displayMixedPage(pageNum, termWidth, termHeight int) {
 }
 
 func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType string) {
+	modeIndicator := ""
+	if d.forceMode != "" {
+		modeIndicator = fmt.Sprintf(" [%s mode]", d.forceMode)
+	}
 	var pageInfo string
 	if d.fileType == "epub" {
-		pageInfo = fmt.Sprintf("Page %d/%d (%s) - EPUB", d.currentPage+1, len(d.textPages), contentType)
+		pageInfo = fmt.Sprintf("Page %d/%d (%s)%s - EPUB", d.currentPage+1, len(d.textPages), contentType, modeIndicator)
 	} else {
-		pageInfo = fmt.Sprintf("Page %d/%d (%s) - PDF", d.currentPage+1, len(d.textPages), contentType)
+		pageInfo = fmt.Sprintf("Page %d/%d (%s)%s - PDF", d.currentPage+1, len(d.textPages), contentType, modeIndicator)
 	}
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
@@ -353,6 +374,7 @@ func (d *DocumentViewer) showHelp() {
 	fmt.Println("  j or Space  - Next page/chapter")
 	fmt.Println("  k           - Previous page/chapter")
 	fmt.Println("  g           - Go to specific page/chapter")
+	fmt.Println("  t           - Toggle view mode (auto → text → image)")
 	fmt.Println("  h           - Show this help")
 	fmt.Println("  q           - Quit")
 	fmt.Println()

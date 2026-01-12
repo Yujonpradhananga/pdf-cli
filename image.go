@@ -34,7 +34,7 @@ func (d *DocumentViewer) savePageAsImage(pageNum, termWidth, termHeight int) (st
 		return "", 0, 0, err
 	}
 
-	img, err := d.doc.ImageDPI(pageNum, 200.0)
+	img, err := d.doc.ImageDPI(pageNum, 300.0)
 	if err != nil {
 		return "", 0, 0, err
 	}
