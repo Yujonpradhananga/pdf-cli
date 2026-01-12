@@ -56,12 +56,29 @@ func (d *DocumentViewer) savePageAsImage(pageNum, termWidth, termHeight int) (st
 
 	aspectRatio := float64(imgHeight) / float64(imgWidth)
 
-	newWidth := targetPixelWidth
-	newHeight := int(float64(newWidth) * aspectRatio)
+	var newWidth, newHeight int
 
-	if newHeight > targetPixelHeight {
+	switch d.fitMode {
+	case "height":
+		// Fit to height, let width follow
 		newHeight = targetPixelHeight
 		newWidth = int(float64(newHeight) / aspectRatio)
+		if newWidth > targetPixelWidth {
+			newWidth = targetPixelWidth
+			newHeight = int(float64(newWidth) * aspectRatio)
+		}
+	case "width":
+		// Fit to width, let height follow (may exceed screen)
+		newWidth = targetPixelWidth
+		newHeight = int(float64(newWidth) * aspectRatio)
+	default: // "auto"
+		// Fit within bounds, preserving aspect ratio
+		newWidth = targetPixelWidth
+		newHeight = int(float64(newWidth) * aspectRatio)
+		if newHeight > targetPixelHeight {
+			newHeight = targetPixelHeight
+			newWidth = int(float64(newHeight) / aspectRatio)
+		}
 	}
 
 	if newWidth < 100 {

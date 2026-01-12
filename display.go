@@ -199,8 +199,8 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 		modeIndicator = fmt.Sprintf(" [%s]", d.forceMode)
 	}
 	fitIndicator := ""
-	if !d.fitToHeight {
-		fitIndicator = " [scroll]"
+	if d.fitMode != "height" {
+		fitIndicator = fmt.Sprintf(" [fit:%s]", d.fitMode)
 	}
 	var pageInfo string
 	if d.fileType == "epub" {

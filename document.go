@@ -23,7 +23,7 @@ type DocumentViewer struct {
 	fileType    string // "pdf" or "epub"
 	tempDir     string // for storing temporary image files
 	forceMode   string // "", "text", or "image" - override auto-detection
-	fitToHeight bool   // fit image to terminal height (no scrolling)
+	fitMode string // "auto", "height", "width"
 	wantBack    bool   // signal to go back to file picker
 }
 
@@ -34,11 +34,11 @@ func NewDocumentViewer(path string) *DocumentViewer {
 	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("docviewer_%d", time.Now().UnixNano()))
 
 	return &DocumentViewer{
-		path:        path,
-		fileType:    fileType,
-		reader:      bufio.NewReader(os.Stdin),
-		tempDir:     tempDir,
-		fitToHeight: true, // default: fit to height (no scrolling)
+		path:     path,
+		fileType: fileType,
+		reader:   bufio.NewReader(os.Stdin),
+		tempDir:  tempDir,
+		fitMode:  "height", // default: fit to height
 	}
 }
 
@@ -241,7 +241,14 @@ func (d *DocumentViewer) handleInput(c byte) bool {
 	case 't':
 		d.toggleViewMode()
 	case 'f':
-		d.fitToHeight = !d.fitToHeight
+		switch d.fitMode {
+		case "height":
+			d.fitMode = "width"
+		case "width":
+			d.fitMode = "auto"
+		default:
+			d.fitMode = "height"
+		}
 	case 27: // ESC key - could be arrow keys
 		d.handleArrowKeys()
 	}
