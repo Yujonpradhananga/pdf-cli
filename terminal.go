@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/term"
@@ -53,7 +55,21 @@ func (d *DocumentViewer) detectTerminalType() string {
 }
 
 func (d *DocumentViewer) getTerminalCellSize() (float64, float64) {
-	// Try to get actual pixel size from terminal
+	// Use cached values if available
+	if d.cellWidth > 0 && d.cellHeight > 0 {
+		return d.cellWidth, d.cellHeight
+	}
+	return d.detectCellSize()
+}
+
+// detectCellSize detects cell size - call before entering raw mode
+func (d *DocumentViewer) detectCellSize() (float64, float64) {
+	// Try Kitty-specific query first (most accurate)
+	if kw, kh := d.getKittyCellSize(); kw > 0 && kh > 0 {
+		return kw, kh
+	}
+
+	// Try TIOCGWINSZ pixel size
 	pixelWidth, pixelHeight := d.getTerminalPixelSize()
 	charWidth, charHeight := d.getTerminalSize()
 
@@ -101,6 +117,47 @@ func (d *DocumentViewer) getTerminalPixelSize() (int, int) {
 	if err == 0 && ws.Xpixel > 0 && ws.Ypixel > 0 {
 		return int(ws.Xpixel), int(ws.Ypixel)
 	}
+	return 0, 0
+}
+
+// getKittyCellSize queries Kitty for actual cell size using escape sequence
+func (d *DocumentViewer) getKittyCellSize() (float64, float64) {
+	if d.detectTerminalType() != "kitty" {
+		return 0, 0
+	}
+
+	// Query cell size: CSI 16 t -> CSI 6 ; height ; width t
+	os.Stdout.WriteString("\x1b[16t")
+	os.Stdout.Sync()
+
+	// Read response with timeout using goroutine
+	resultChan := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := os.Stdin.Read(buf)
+		if n > 0 {
+			resultChan <- string(buf[:n])
+		} else {
+			resultChan <- ""
+		}
+	}()
+
+	select {
+	case response := <-resultChan:
+		if response == "" {
+			return 0, 0
+		}
+		// Parse response: ESC [ 6 ; height ; width t
+		var cellHeight, cellWidth int
+		if _, err := fmt.Sscanf(response, "\x1b[6;%d;%dt", &cellHeight, &cellWidth); err == nil {
+			if cellWidth > 0 && cellHeight > 0 {
+				return float64(cellWidth), float64(cellHeight)
+			}
+		}
+	case <-time.After(50 * time.Millisecond):
+		// Timeout - terminal didn't respond
+	}
+
 	return 0, 0
 }
 

@@ -31,6 +31,8 @@ type DocumentViewer struct {
 	searchHitIdx int       // current index in searchHits
 	scaleFactor  float64   // image scale adjustment (1.0 = default)
 	lastModTime  time.Time // for auto-reload detection
+	cellWidth    float64   // cached cell width in pixels
+	cellHeight   float64   // cached cell height in pixels
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -199,6 +201,9 @@ func (d *DocumentViewer) checkColorVariance(img image.Image) float64 {
 func (d *DocumentViewer) Run() bool {
 	defer d.doc.Close()
 	defer d.cleanup()
+
+	// Cache cell size before entering raw mode (for Kitty query)
+	d.cellWidth, d.cellHeight = d.detectCellSize()
 
 	oldState, err := d.setRawMode()
 	if err != nil {
