@@ -33,15 +33,44 @@ go build -o docviewer . && mv docviewer ~/bin/
 - `b` - Back to file list
 - `/` - Search, `n`/`N` - next/prev result
 - `t` - Toggle text/image mode
-- `f` - Cycle fit modes
+- `f` - Cycle fit modes (height → width → auto)
+- `+`/`-` - Manual zoom (10% to 200%)
 - `h` - Help
 - `q` - Quit
+
+## Auto-Reload (LaTeX Workflow)
+- Checks file modification every 500ms
+- Waits for file size to stabilize before reloading
+- Retries opening PDF up to 3 times if corrupted
+- **Silent error handling**: MuPDF warnings suppressed via stderr redirect
+- Preserves current page position after reload
+- Perfect for `latexmk -pvc` continuous compilation
 
 ## Dependencies
 - `github.com/gen2brain/go-fitz` - PDF/EPUB parsing (MuPDF)
 - `github.com/blacktop/go-termimg` - Terminal image rendering
 - `github.com/disintegration/imaging` - Image processing
 - `github.com/sahilm/fuzzy` - Fuzzy file search
+
+## Development Notes
+
+### Error Handling Philosophy
+- Silent errors preferred - don't spam terminal with warnings
+- Use stderr redirect to /dev/null for noisy libraries (MuPDF)
+- Graceful degradation: keep showing current content if reload fails
+
+### Terminal Cell Sizes (HiDPI)
+Tuned for Retina/HiDPI displays:
+- Kitty: 18x36 pixels
+- WezTerm: 18x36 pixels
+- iTerm2: 16x32 pixels
+- Alacritty: 14x28 pixels
+
+### User's Workflow
+- Uses `dv` alias for `docviewer`
+- LaTeX compilation with `latexmk -pvc`
+- Prefers immediate feedback, no prompts
+- Wants zoom range down to 10% for overview
 
 ## Fork Info
 Original: https://github.com/Yujonpradhananga/CLI-PDF-EPUB-reader
