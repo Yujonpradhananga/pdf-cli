@@ -338,8 +338,8 @@ func (d *DocumentViewer) handleInput(c byte) bool {
 		}
 	case '-', '_':
 		d.scaleFactor -= 0.1
-		if d.scaleFactor < 0.5 {
-			d.scaleFactor = 0.5
+		if d.scaleFactor < 0.1 {
+			d.scaleFactor = 0.1
 		}
 	case 27: // ESC key - could be arrow keys
 		d.handleArrowKeys()
