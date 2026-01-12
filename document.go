@@ -211,48 +211,44 @@ func (d *DocumentViewer) Run() bool {
 
 	d.currentPage = 0
 
-	// Start file watcher goroutine
-	reloadChan := make(chan bool, 1)
-	stopChan := make(chan bool)
+	// Channel for input from goroutine
+	inputChan := make(chan byte, 1)
+	stopChan := make(chan struct{})
+	defer close(stopChan)
+
+	// Input reader goroutine
 	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
 		for {
+			char := d.readSingleChar()
 			select {
-			case <-ticker.C:
-				if d.checkAndReload() {
-					select {
-					case reloadChan <- true:
-					default:
-					}
-				}
 			case <-stopChan:
 				return
+			case inputChan <- char:
 			}
 		}
 	}()
-	defer close(stopChan)
+
+	// Ticker for file change checking
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	d.displayCurrentPage()
 
 	for {
-		d.displayCurrentPage()
-
-		// Check for reload signal (non-blocking)
+		// Wait for input or reload tick
 		select {
-		case <-reloadChan:
-			continue // Redisplay after reload
-		default:
-		}
-
-		char := d.readSingleChar()
-
-		if d.handleInput(char) {
-			break // Exit the loop to quit
+		case char := <-inputChan:
+			if d.handleInput(char) {
+				fmt.Print("\033[2J\033[H")
+				return d.wantBack
+			}
+			d.displayCurrentPage()
+		case <-ticker.C:
+			if d.checkAndReload() {
+				d.displayCurrentPage()
+			}
 		}
 	}
-
-	// Clear screen
-	fmt.Print("\033[2J\033[H")
-	return d.wantBack
 }
 
 func (d *DocumentViewer) cleanup() {
@@ -268,58 +264,65 @@ func (d *DocumentViewer) checkAndReload() bool {
 	}
 
 	if info.ModTime().After(d.lastModTime) {
-		// File changed - wait for it to stabilize
-		// Check that file size is stable (not still being written)
+		// Update lastModTime immediately to avoid repeated attempts
+		d.lastModTime = info.ModTime()
+
+		// Wait for file to stabilize (not still being written)
 		lastSize := info.Size()
 		for i := 0; i < 5; i++ {
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			newInfo, err := os.Stat(d.path)
 			if err != nil {
 				return false
 			}
-			if newInfo.Size() == lastSize {
-				break // File size stable
+			if newInfo.Size() == lastSize && newInfo.Size() > 0 {
+				break
 			}
 			lastSize = newInfo.Size()
 		}
 
-		// Try to open the new file (suppress stderr warnings from MuPDF)
+		// Suppress stderr during PDF open
 		savedPage := d.currentPage
-		var doc *fitz.Document
-		var openErr error
-
-		// Suppress stderr during PDF open attempts
+		savedStderr, _ := syscall.Dup(2)
 		devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-		oldStderr := os.Stderr
-		if devNull != nil {
-			os.Stderr = devNull
+		if devNull != nil && savedStderr != -1 {
 			syscall.Dup2(int(devNull.Fd()), 2)
 		}
 
-		for i := 0; i < 3; i++ {
-			doc, openErr = fitz.New(d.path)
-			if openErr == nil {
-				break
-			}
-			time.Sleep(300 * time.Millisecond)
-		}
+		doc, openErr := fitz.New(d.path)
 
 		// Restore stderr
+		if savedStderr != -1 {
+			syscall.Dup2(savedStderr, 2)
+			syscall.Close(savedStderr)
+		}
 		if devNull != nil {
-			os.Stderr = oldStderr
-			syscall.Dup2(int(oldStderr.Fd()), 2)
 			devNull.Close()
 		}
 
 		if openErr != nil {
-			return false // Still can't open, skip this reload
+			return false
 		}
 
-		// Success - close old doc and use new one
-		d.doc.Close()
+		// Check if new doc has valid pages before switching
+		oldDoc := d.doc
+		oldPages := d.textPages
+		oldPage := d.currentPage
+
 		d.doc = doc
-		d.lastModTime = info.ModTime()
 		d.findContentPages()
+
+		if len(d.textPages) == 0 {
+			// New doc is invalid/corrupted, keep old one
+			d.doc = oldDoc
+			d.textPages = oldPages
+			d.currentPage = oldPage
+			doc.Close()
+			return false
+		}
+
+		// New doc is good, close old one
+		oldDoc.Close()
 
 		// Restore page position (clamp to valid range)
 		if savedPage >= len(d.textPages) {
@@ -380,8 +383,8 @@ func (d *DocumentViewer) handleInput(c byte) bool {
 		if d.scaleFactor < 0.1 {
 			d.scaleFactor = 0.1
 		}
-	case 27: // ESC key - could be arrow keys
-		d.handleArrowKeys()
+	case 27: // ESC key (arrow keys handled in readSingleChar)
+		// Do nothing for plain ESC
 	}
 	return false
 }
@@ -466,31 +469,6 @@ func (d *DocumentViewer) toggleViewMode() {
 	}
 }
 
-func (d *DocumentViewer) handleArrowKeys() {
-	buf := make([]byte, 2)
-	n, _ := os.Stdin.Read(buf)
-
-	if n >= 2 && buf[0] == '[' {
-		switch buf[1] {
-		case 'B': // Down arrow
-			if d.currentPage > 0 {
-				d.currentPage--
-			}
-		case 'A': // Up arrow
-			if d.currentPage < len(d.textPages)-1 {
-				d.currentPage++
-			}
-		case 'C': // Right arrow
-			if d.currentPage < len(d.textPages)-1 {
-				d.currentPage++
-			}
-		case 'D': // Left arrow
-			if d.currentPage > 0 {
-				d.currentPage--
-			}
-		}
-	}
-}
 
 func (d *DocumentViewer) goToPage() {
 	d.restoreTerminal(d.oldState)

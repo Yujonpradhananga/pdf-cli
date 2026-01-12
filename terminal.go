@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"strings"
+	"syscall"
+	"unsafe"
 
 	"golang.org/x/term"
 )
@@ -51,11 +53,23 @@ func (d *DocumentViewer) detectTerminalType() string {
 }
 
 func (d *DocumentViewer) getTerminalCellSize() (float64, float64) {
+	// Try to get actual pixel size from terminal
+	pixelWidth, pixelHeight := d.getTerminalPixelSize()
+	charWidth, charHeight := d.getTerminalSize()
+
+	if pixelWidth > 0 && pixelHeight > 0 && charWidth > 0 && charHeight > 0 {
+		cellWidth := float64(pixelWidth) / float64(charWidth)
+		cellHeight := float64(pixelHeight) / float64(charHeight)
+		if cellWidth > 4 && cellHeight > 8 {
+			return cellWidth, cellHeight
+		}
+	}
+
+	// Fallback to hardcoded values
 	termType := d.detectTerminalType()
-	// Cell sizes in pixels - tuned for HiDPI/Retina displays
 	switch termType {
 	case "kitty":
-		return 18.0, 36.0 // HiDPI Kitty
+		return 18.0, 36.0
 	case "foot":
 		return 15.0, 25.0
 	case "alacritty":
@@ -69,6 +83,25 @@ func (d *DocumentViewer) getTerminalCellSize() (float64, float64) {
 	default:
 		return 15.0, 30.0
 	}
+}
+
+func (d *DocumentViewer) getTerminalPixelSize() (int, int) {
+	ws := struct {
+		Row    uint16
+		Col    uint16
+		Xpixel uint16
+		Ypixel uint16
+	}{}
+
+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(syscall.Stdout),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(&ws)))
+
+	if err == 0 && ws.Xpixel > 0 && ws.Ypixel > 0 {
+		return int(ws.Xpixel), int(ws.Ypixel)
+	}
+	return 0, 0
 }
 
 func (d *DocumentViewer) setRawMode() (*term.State, error) {
@@ -89,8 +122,28 @@ func (d *DocumentViewer) restoreTerminal(old *term.State) {
 func (d *DocumentViewer) readSingleChar() byte {
 	buf := make([]byte, 1)
 	n, _ := os.Stdin.Read(buf)
-	if n > 0 {
-		return buf[0]
+	if n == 0 {
+		return 0
 	}
-	return 0
+
+	// Handle escape sequences (arrow keys)
+	if buf[0] == 27 {
+		seq := make([]byte, 2)
+		n, _ := os.Stdin.Read(seq)
+		if n >= 2 && seq[0] == '[' {
+			switch seq[1] {
+			case 'A': // Up arrow -> previous page (like k)
+				return 'k'
+			case 'B': // Down arrow -> next page (like j)
+				return 'j'
+			case 'C': // Right arrow -> next page
+				return 'j'
+			case 'D': // Left arrow -> previous page
+				return 'k'
+			}
+		}
+		return 27 // Plain ESC
+	}
+
+	return buf[0]
 }
