@@ -198,10 +198,7 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 	if d.forceMode != "" {
 		modeIndicator = fmt.Sprintf(" [%s]", d.forceMode)
 	}
-	fitIndicator := ""
-	if d.fitMode != "height" {
-		fitIndicator = fmt.Sprintf(" [fit:%s]", d.fitMode)
-	}
+	fitIndicator := fmt.Sprintf(" [fit:%s]", d.fitMode)
 	searchIndicator := ""
 	if d.searchQuery != "" {
 		if len(d.searchHits) > 0 {
