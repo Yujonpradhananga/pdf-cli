@@ -26,9 +26,10 @@ type DocumentViewer struct {
 	fitMode      string  // "auto", "height", "width"
 	wantBack     bool    // signal to go back to file picker
 	searchQuery  string  // current search query
-	searchHits   []int   // pages with matches
-	searchHitIdx int     // current index in searchHits
-	scaleFactor  float64 // image scale adjustment (1.0 = default)
+	searchHits   []int     // pages with matches
+	searchHitIdx int       // current index in searchHits
+	scaleFactor  float64   // image scale adjustment (1.0 = default)
+	lastModTime  time.Time // for auto-reload detection
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -53,6 +54,11 @@ func (d *DocumentViewer) Open() error {
 		return fmt.Errorf("error opening %s: %v", d.fileType, err)
 	}
 	d.doc = doc
+
+	// Store modification time for auto-reload
+	if info, err := os.Stat(d.path); err == nil {
+		d.lastModTime = info.ModTime()
+	}
 
 	d.findContentPages()
 	if len(d.textPages) == 0 {
@@ -203,14 +209,44 @@ func (d *DocumentViewer) Run() bool {
 	defer fmt.Print("\033[?25h") // Show cursor on exit
 
 	d.currentPage = 0
+
+	// Start file watcher goroutine
+	reloadChan := make(chan bool, 1)
+	stopChan := make(chan bool)
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if d.checkAndReload() {
+					select {
+					case reloadChan <- true:
+					default:
+					}
+				}
+			case <-stopChan:
+				return
+			}
+		}
+	}()
+	defer close(stopChan)
+
 	for {
 		d.displayCurrentPage()
+
+		// Check for reload signal (non-blocking)
+		select {
+		case <-reloadChan:
+			continue // Redisplay after reload
+		default:
+		}
+
 		char := d.readSingleChar()
 
 		if d.handleInput(char) {
 			break // Exit the loop to quit
 		}
-
 	}
 
 	// Clear screen
@@ -222,6 +258,41 @@ func (d *DocumentViewer) cleanup() {
 	if d.tempDir != "" {
 		os.RemoveAll(d.tempDir)
 	}
+}
+
+func (d *DocumentViewer) checkAndReload() bool {
+	info, err := os.Stat(d.path)
+	if err != nil {
+		return false
+	}
+
+	if info.ModTime().After(d.lastModTime) {
+		// File changed - reload
+		savedPage := d.currentPage
+		d.doc.Close()
+
+		// Small delay to ensure file is fully written
+		time.Sleep(100 * time.Millisecond)
+
+		doc, err := fitz.New(d.path)
+		if err != nil {
+			return false
+		}
+		d.doc = doc
+		d.lastModTime = info.ModTime()
+		d.findContentPages()
+
+		// Restore page position (clamp to valid range)
+		if savedPage >= len(d.textPages) {
+			savedPage = len(d.textPages) - 1
+		}
+		if savedPage < 0 {
+			savedPage = 0
+		}
+		d.currentPage = savedPage
+		return true
+	}
+	return false
 }
 
 func (d *DocumentViewer) handleInput(c byte) bool {
