@@ -25,7 +25,7 @@ func (d *DocumentViewer) renderPageImage(pageNum, maxWidth, maxHeight int) int {
 		horizontalOffset = 0
 	}
 
-	return d.renderWithTermImg(imagePath, actualHeight, horizontalOffset)
+	return d.renderWithTermImg(imagePath, actualHeight, horizontalOffset, imageWidthInChars)
 }
 
 func (d *DocumentViewer) savePageAsImage(pageNum, termWidth, termHeight int) (string, int, int, error) {
@@ -133,12 +133,19 @@ func (d *DocumentViewer) savePageAsImage(pageNum, termWidth, termHeight int) (st
 	return imagePath, actualLines, imageWidthInChars, nil
 }
 
-func (d *DocumentViewer) renderWithTermImg(imagePath string, estimatedLines int, horizontalOffset int) int {
+func (d *DocumentViewer) renderWithTermImg(imagePath string, estimatedLines int, horizontalOffset int, widthChars int) int {
 	if horizontalOffset > 0 {
 		fmt.Printf("\033[%dC", horizontalOffset) // Move cursor right
 	}
 
-	err := termimg.PrintFile(imagePath)
+	// Use termimg fluent API to control size in terminal cells
+	img, err := termimg.Open(imagePath)
+	if err != nil {
+		return 0
+	}
+
+	// Set dimensions in terminal cells and use Fit scaling
+	err = img.Width(widthChars).Height(estimatedLines).Scale(termimg.ScaleFit).Print()
 	if err != nil {
 		return 0
 	}
