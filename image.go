@@ -144,8 +144,8 @@ func (d *DocumentViewer) renderWithTermImg(imagePath string, estimatedLines int,
 		return 0
 	}
 
-	// Set dimensions in terminal cells and use Fit scaling
-	err = img.Width(widthChars).Height(estimatedLines).Scale(termimg.ScaleFit).Print()
+	// Use ScaleNone - we already rendered at the correct size
+	err = img.Width(widthChars).Height(estimatedLines).Scale(termimg.ScaleNone).Print()
 	if err != nil {
 		return 0
 	}
