@@ -10,12 +10,24 @@ import (
 func (d *DocumentViewer) displayCurrentPage() {
 	termWidth, termHeight := d.getTerminalSize()
 	actualPage := d.textPages[d.currentPage]
-	fmt.Print("\033[2J")
-	fmt.Print("\033[3J")
-	fmt.Print("\033[H")
+
+	// Begin synchronized update (Kitty) - buffers output for atomic display
+	fmt.Print("\033[?2026h")
+
+	if d.skipClear {
+		// Reload case: delete Kitty images, move home, overwrite
+		fmt.Print("\033_Ga=d,d=A\033\\") // Delete all Kitty images
+		fmt.Print("\033[H")              // Move cursor home
+		d.skipClear = false
+	} else {
+		// Normal case: full screen clear
+		fmt.Print("\033[2J")
+		fmt.Print("\033[3J")
+		fmt.Print("\033[H")
+	}
 	fmt.Print("\033[1G")
 	fmt.Print("\033[0m")
-	os.Stdout.Sync()
+
 	contentType := d.getPageContentType(actualPage)
 	switch contentType {
 	case "text":
@@ -28,6 +40,9 @@ func (d *DocumentViewer) displayCurrentPage() {
 		d.displayTextPage(actualPage, termWidth, termHeight)
 	}
 	fmt.Print("\033[9999;1H")
+
+	// End synchronized update - display everything at once
+	fmt.Print("\033[?2026l")
 	os.Stdout.Sync()
 }
 

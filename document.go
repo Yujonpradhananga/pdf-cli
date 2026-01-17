@@ -38,6 +38,7 @@ type DocumentViewer struct {
 	lastTermCols int       // last known terminal columns (for change detection)
 	lastTermRows int       // last known terminal rows (for change detection)
 	fifoPath     string    // path to FIFO for external page jump commands
+	skipClear    bool      // skip screen clear on next display (for smooth reload)
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -434,6 +435,7 @@ func (d *DocumentViewer) checkAndReload() bool {
 			savedPage = 0
 		}
 		d.currentPage = savedPage
+		d.skipClear = true // Skip screen clear to avoid blink on reload
 		return true
 	}
 	return false
