@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"crypto/md5"
 	"fmt"
 	"image"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,6 +37,7 @@ type DocumentViewer struct {
 	cellHeight   float64   // cached cell height in pixels
 	lastTermCols int       // last known terminal columns (for change detection)
 	lastTermRows int       // last known terminal rows (for change detection)
+	fifoPath     string    // path to FIFO for external page jump commands
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -223,6 +226,16 @@ func (d *DocumentViewer) Run() bool {
 	stopChan := make(chan struct{})
 	defer close(stopChan)
 
+	// Channel for external page jump commands via FIFO
+	pageChan := make(chan int, 1)
+
+	// Set up FIFO for external control
+	d.setupFIFO()
+	defer d.cleanupFIFO()
+
+	// FIFO listener goroutine
+	go d.fifoListener(pageChan, stopChan)
+
 	// Input reader goroutine
 	go func() {
 		for {
@@ -242,13 +255,16 @@ func (d *DocumentViewer) Run() bool {
 	d.displayCurrentPage()
 
 	for {
-		// Wait for input or reload tick
+		// Wait for input, page jump, or reload tick
 		select {
 		case char := <-inputChan:
 			if d.handleInput(char) {
 				fmt.Print("\033[2J\033[H")
 				return d.wantBack
 			}
+			d.displayCurrentPage()
+		case page := <-pageChan:
+			d.jumpToPage(page)
 			d.displayCurrentPage()
 		case <-ticker.C:
 			if d.checkAndReload() {
@@ -261,6 +277,85 @@ func (d *DocumentViewer) Run() bool {
 func (d *DocumentViewer) cleanup() {
 	if d.tempDir != "" {
 		os.RemoveAll(d.tempDir)
+	}
+}
+
+func (d *DocumentViewer) setupFIFO() {
+	// Create control file path based on absolute PDF path hash
+	absPath, _ := filepath.Abs(d.path)
+	hash := md5.Sum([]byte(absPath))
+	d.fifoPath = fmt.Sprintf("/tmp/docviewer_%x.ctrl", hash[:8])
+
+	// Remove existing file if present
+	os.Remove(d.fifoPath)
+}
+
+func (d *DocumentViewer) cleanupFIFO() {
+	if d.fifoPath != "" {
+		os.Remove(d.fifoPath)
+	}
+}
+
+func (d *DocumentViewer) fifoListener(pageChan chan<- int, stopChan <-chan struct{}) {
+	var lastMod time.Time
+
+	for {
+		select {
+		case <-stopChan:
+			return
+		default:
+		}
+
+		// Check if control file exists and was modified
+		info, err := os.Stat(d.fifoPath)
+		if err != nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		if info.ModTime().After(lastMod) {
+			lastMod = info.ModTime()
+
+			data, err := os.ReadFile(d.fifoPath)
+			if err == nil {
+				line := strings.TrimSpace(string(data))
+				if page, err := strconv.Atoi(line); err == nil && page >= 1 {
+					select {
+					case pageChan <- page:
+					default:
+					}
+				}
+			}
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func (d *DocumentViewer) jumpToPage(page int) {
+	// page is 1-indexed from external command
+	// Find the index in textPages that corresponds to this PDF page
+	targetPdfPage := page - 1 // Convert to 0-indexed PDF page
+
+	// First try exact match
+	for i, pdfPage := range d.textPages {
+		if pdfPage == targetPdfPage {
+			d.currentPage = i
+			return
+		}
+	}
+
+	// If exact page not in textPages, find closest page
+	for i, pdfPage := range d.textPages {
+		if pdfPage >= targetPdfPage {
+			d.currentPage = i
+			return
+		}
+	}
+
+	// If target is beyond all pages, go to last
+	if len(d.textPages) > 0 {
+		d.currentPage = len(d.textPages) - 1
 	}
 }
 
