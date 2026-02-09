@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -499,6 +500,10 @@ func (d *DocumentViewer) handleInput(c byte) int {
 	case 'r':
 		// Refresh cell size (useful after resolution/monitor change)
 		d.refreshCellSize()
+	case 'S':
+		d.openInExternalApp("Skim")
+	case 'P':
+		d.openInExternalApp("Preview")
 	case 'd':
 		// Debug: show detected dimensions
 		return -4 // signal: show debug info
@@ -506,6 +511,11 @@ func (d *DocumentViewer) handleInput(c byte) int {
 		// Do nothing for plain ESC
 	}
 	return 0
+}
+
+func (d *DocumentViewer) openInExternalApp(appName string) {
+	absPath, _ := filepath.Abs(d.path)
+	exec.Command("open", "-a", appName, absPath).Start()
 }
 
 func (d *DocumentViewer) startSearch(inputChan <-chan byte) {

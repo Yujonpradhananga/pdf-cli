@@ -480,6 +480,8 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	fmt.Println("  +/-                 - Zoom in/out (10%-200%)")
 	fmt.Println("  r                   - Refresh cell size (after resolution change)")
 	fmt.Println("  d                   - Show debug info")
+	fmt.Println("  S                   - Open in Skim")
+	fmt.Println("  P                   - Open in Preview")
 	fmt.Println("  h                   - Show this help")
 	fmt.Println("  q                   - Quit")
 	fmt.Println()
