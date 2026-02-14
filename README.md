@@ -51,6 +51,26 @@ A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolut
 
 ## Installation
 
+### NixOS
+
+Add to your `flake.nix` inputs:
+```nix
+{
+  inputs = {
+    lnreader.url = "github:Yujonpradhananga/CLI-PDF-EPUB-reader";
+  };
+}
+```
+
+Then in your `home.nix`:
+```nix
+{ inputs, pkgs, ... }: {
+  home.packages = [
+    inputs.lnreader.packages.x86_64-linux.default
+  ];
+}
+```
+
 ### Building from source
 
 ```bash
