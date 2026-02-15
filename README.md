@@ -1,4 +1,4 @@
-# CLI pdf-cli
+# pdf-cli
 
 A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolution image rendering, auto-reload for LaTeX workflows, and intelligent text reflow.
 
