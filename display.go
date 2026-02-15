@@ -57,7 +57,7 @@ func (d *DocumentViewer) getPageContentType(pageNum int) string {
 
 	// For PDFs, prefer image rendering - it's more faithful to the original
 	// especially for math, diagrams, and formatted content
-	if d.fileType == "pdf" {
+	if d.fileType == "pdf" || d.fileType == "html" || d.fileType == "htm" {
 		if d.pageHasVisualContent(pageNum) {
 			return "image"
 		}
@@ -280,7 +280,11 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 	}
 	fitIndicator := fmt.Sprintf(" [fit:%s]", d.fitMode)
 	scaleIndicator := ""
-	if d.scaleFactor != 1.0 {
+	if d.isReflowable {
+		// Show zoom as percentage relative to A4 width (595pt)
+		zoomPct := 595 * 100 / d.htmlPageWidth
+		scaleIndicator = fmt.Sprintf(" [zoom:%d%%]", zoomPct)
+	} else if d.scaleFactor != 1.0 {
 		scaleIndicator = fmt.Sprintf(" [%.0f%%]", d.scaleFactor*100)
 	}
 	searchIndicator := ""
@@ -291,12 +295,8 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 			searchIndicator = fmt.Sprintf(" [/%s: no matches]", d.searchQuery)
 		}
 	}
-	var pageInfo string
-	if d.fileType == "epub" {
-		pageInfo = fmt.Sprintf("Page %d/%d (%s)%s%s%s%s - EPUB", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, searchIndicator)
-	} else {
-		pageInfo = fmt.Sprintf("Page %d/%d (%s)%s%s%s%s - PDF", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, searchIndicator)
-	}
+	typeLabel := strings.ToUpper(d.fileType)
+	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, searchIndicator, typeLabel)
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
 	}
@@ -494,7 +494,7 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 		fmt.Println("  - HTML entities are converted to readable text")
 	}
 	fmt.Println()
-	fmt.Println("Supported formats: PDF, EPUB, DOCX")
+	fmt.Println("Supported formats: PDF, EPUB, DOCX, HTML")
 	fmt.Println()
 	fmt.Println(strings.Repeat("=", termWidth))
 	fmt.Println("Press any key to return...")

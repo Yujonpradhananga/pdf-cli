@@ -118,7 +118,7 @@ func (fs *FileSearcher) scanDirectory(dir string, maxDepth int) []string {
 			results = append(results, subResults...)
 		} else {
 			ext := strings.ToLower(filepath.Ext(entry.Name()))
-			if ext == ".pdf" || ext == ".epub" || ext == ".docx" {
+			if ext == ".pdf" || ext == ".epub" || ext == ".docx" || ext == ".html" || ext == ".htm" {
 				results = append(results, fullPath)
 			}
 		}
