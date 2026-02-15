@@ -4,7 +4,6 @@ go 1.24.6
 
 require (
 	github.com/blacktop/go-termimg v0.1.24
-	github.com/disintegration/imaging v1.6.2
 	github.com/gen2brain/go-fitz v1.24.15
 	github.com/sahilm/fuzzy v0.1.1
 	golang.org/x/term v0.37.0

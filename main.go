@@ -21,9 +21,10 @@ func main() {
 		}
 	}
 
-	// Determine target: argument or current directory
+	// Determine if user provided an argument
+	hasArg := len(os.Args) > 1
 	arg := "."
-	if len(os.Args) > 1 {
+	if hasArg {
 		arg = os.Args[1]
 	}
 
@@ -31,6 +32,32 @@ func main() {
 	if strings.HasPrefix(arg, "~/") {
 		homeDir, _ := os.UserHomeDir()
 		arg = filepath.Join(homeDir, arg[2:])
+	}
+
+	// When no argument given, do a broad search across common directories
+	if !hasArg {
+		// Main loop for broad search mode
+		for {
+			filePath, err := selectFileWithPickerBroadSearch()
+			if err != nil {
+				fmt.Printf("File selection cancelled: %v\n", err)
+				return
+			}
+			if filePath == "" {
+				return
+			}
+
+			viewer := NewDocumentViewer(filePath)
+			if err := viewer.Open(); err != nil {
+				fmt.Printf("Error opening file: %v\n", err)
+				return
+			}
+
+			wantBack := viewer.Run()
+			if !wantBack {
+				return
+			}
+		}
 	}
 
 	// Check if argument is a directory or file
@@ -155,6 +182,19 @@ func selectFileWithPickerInDir(dir string) (string, error) {
 	allFiles := searcher.GetAllFiles()
 	if len(allFiles) == 0 {
 		return "", fmt.Errorf("no PDF or EPUB files found in %s", dir)
+	}
+	picker := NewFilePicker(searcher)
+	return picker.Run()
+}
+
+func selectFileWithPickerBroadSearch() (string, error) {
+	searcher := NewFileSearcher()
+	if err := searcher.ScanDirectories(); err != nil {
+		return "", fmt.Errorf("error scanning directories: %v", err)
+	}
+	allFiles := searcher.GetAllFiles()
+	if len(allFiles) == 0 {
+		return "", fmt.Errorf("no PDF or EPUB files found in common directories")
 	}
 	picker := NewFilePicker(searcher)
 	return picker.Run()
