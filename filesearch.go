@@ -47,8 +47,9 @@ func (fs *FileSearcher) ScanDirectories() error {
 	fmt.Println("Scanning for PDF and EPUB files...")
 	fmt.Println("This may take a moment on first run...")
 
-	// Collect all files from all directories
-	var allFiles []string
+	// Use a map to track unique files and avoid duplicates
+	uniqueFiles := make(map[string]bool)
+	
 	for _, dir := range searchDirs {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
@@ -77,7 +78,7 @@ func (fs *FileSearcher) ScanDirectories() error {
 			if !info.IsDir() {
 				ext := strings.ToLower(filepath.Ext(path))
 				if ext == ".pdf" || ext == ".epub" || ext == ".docx" {
-					allFiles = append(allFiles, path)
+					uniqueFiles[path] = true
 				}
 			}
 
@@ -85,7 +86,12 @@ func (fs *FileSearcher) ScanDirectories() error {
 		})
 	}
 
-	fs.files = allFiles
+	// Convert map to slice
+	fs.files = make([]string, 0, len(uniqueFiles))
+	for file := range uniqueFiles {
+		fs.files = append(fs.files, file)
+	}
+	
 	fmt.Printf("Found %d files\n\n", len(fs.files))
 	return nil
 }

@@ -114,8 +114,13 @@ func (fp *FilePicker) updateResults() {
 }
 
 func (fp *FilePicker) ensureSelectedVisible() {
-	headerLines := 3
-	visibleLines := fp.termHeight - headerLines - 1
+	// Account for: header (3) + query (1) + separator (1) + "Found X files" (2) + footer (2)
+	// Total overhead: 9 lines
+	visibleLines := fp.termHeight - 9
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+	
 	if fp.selectedIndex < fp.displayOffset {
 		fp.displayOffset = fp.selectedIndex
 	} else if fp.selectedIndex >= fp.displayOffset+visibleLines {
@@ -131,8 +136,14 @@ func (fp *FilePicker) render() {
 	fmt.Printf("\033[1;32m>\033[0m %s\033[0m\r\n", fp.query)
 	fmt.Print(strings.Repeat("─", fp.termWidth))
 	fmt.Print("\r\n")
-	headerLines := 5
-	visibleLines := fp.termHeight - headerLines - 2
+	
+	// Account for: header (3) + query (1) + separator (1) + "Found X files" (2) + footer (2)
+	// Total overhead: 9 lines
+	visibleLines := fp.termHeight - 9
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+	
 	if len(fp.results) == 0 {
 		fmt.Print("\033[2m  No files found\033[0m\r\n")
 		fmt.Print("\r\n")
