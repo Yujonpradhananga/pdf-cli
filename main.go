@@ -155,7 +155,8 @@ KEYBOARD SHORTCUTS:
     Display:
         t                        Toggle view mode (auto/text/image)
         f                        Cycle fit modes (height/width/auto)
-        i                        Toggle dark mode (smart invert)
+        i                        Toggle dark mode (smart invert, preserves hue)
+        D                        Toggle dark mode (simple invert)
         +, =                     Zoom in
         -                        Zoom out
         r                        Refresh display (re-detect cell size)
