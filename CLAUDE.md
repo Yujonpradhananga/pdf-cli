@@ -33,6 +33,7 @@ go build -o docviewer . && mv docviewer ~/bin/
 - `b` - Back to file list
 - `/` - Search, `n`/`N` - next/prev result
 - `t` - Toggle text/image mode
+- `i` - Toggle dark mode (smart invert)
 - `f` - Cycle fit modes (height → width → auto)
 - `+`/`-` - Manual zoom (10% to 200%)
 - `r` - Refresh cell size (after resolution/monitor change)

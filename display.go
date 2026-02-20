@@ -126,13 +126,23 @@ func (d *DocumentViewer) displayTextPage(pageNum, termWidth, termHeight int) {
 	reflowedLines := d.reflowText(text, effectiveWidth)
 	reserved := 2
 	available := termHeight - reserved
+
+	// Dark mode: white text on black background
+	if d.darkMode {
+		fmt.Print("\033[37;40m") // white fg, black bg
+	}
+
 	row := 1
 	for i, line := range reflowedLines {
 		if row > available {
 			break
 		}
 		fmt.Printf("\033[%d;1H", row)
-		fmt.Printf("  %s", d.highlightSearchMatches(line))
+		if d.darkMode {
+			fmt.Printf("\033[K  %s", d.highlightSearchMatches(line))
+		} else {
+			fmt.Printf("  %s", d.highlightSearchMatches(line))
+		}
 		row++
 		if i == len(reflowedLines)-1 {
 			break
@@ -140,8 +150,16 @@ func (d *DocumentViewer) displayTextPage(pageNum, termWidth, termHeight int) {
 	}
 	for row <= available {
 		fmt.Printf("\033[%d;1H", row)
-		fmt.Print(strings.Repeat(" ", termWidth))
+		if d.darkMode {
+			fmt.Print("\033[K")
+		} else {
+			fmt.Print(strings.Repeat(" ", termWidth))
+		}
 		row++
+	}
+
+	if d.darkMode {
+		fmt.Print("\033[0m") // reset colors
 	}
 	fmt.Printf("\033[%d;1H", termHeight-1)
 	fmt.Print(strings.Repeat(" ", termWidth))
@@ -287,6 +305,10 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 	} else if d.scaleFactor != 1.0 {
 		scaleIndicator = fmt.Sprintf(" [%.0f%%]", d.scaleFactor*100)
 	}
+	darkIndicator := ""
+	if d.darkMode {
+		darkIndicator = " [dark]"
+	}
 	searchIndicator := ""
 	if d.searchQuery != "" {
 		if len(d.searchHits) > 0 {
@@ -296,7 +318,7 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 		}
 	}
 	typeLabel := strings.ToUpper(d.fileType)
-	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, searchIndicator, typeLabel)
+	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, darkIndicator, searchIndicator, typeLabel)
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
 	}
@@ -477,6 +499,7 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	fmt.Println("Display:")
 	fmt.Println("  t                   - Toggle view mode (auto/text/image)")
 	fmt.Println("  f                   - Cycle fit mode (height/width/auto)")
+	fmt.Println("  i                   - Toggle dark mode (smart invert)")
 	fmt.Println("  +/-                 - Zoom in/out (10%-200%)")
 	fmt.Println("  r                   - Refresh cell size (after resolution change)")
 	fmt.Println("  d                   - Show debug info")
