@@ -622,18 +622,26 @@ func (d *DocumentViewer) handleInput(c byte) int {
 func (d *DocumentViewer) openInExternalApp(appName string) {
 	absPath, _ := filepath.Abs(d.path)
 	page := d.currentPage + 1 // convert 0-indexed to 1-indexed
-	exec.Command("open", "-a", appName, absPath).Start()
-	// Navigate to the current page after the app opens
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		switch appName {
-		case "Skim":
-			script := fmt.Sprintf(`tell application "Skim" to set index of current page of document 1 to %d`, page)
-			exec.Command("osascript", "-e", script).Run()
-		case "Preview":
-			// Preview has limited AppleScript support; just open the file
-		}
-	}()
+	switch appName {
+	case "Skim":
+		// Revert (reload) if already open, then open and navigate to page
+		script := fmt.Sprintf(`
+set theFile to POSIX file "%s"
+tell application "Skim"
+  set theDocs to get documents whose path is (get POSIX path of theFile)
+  if (count of theDocs) > 0 then
+    try
+      revert theDocs
+    end try
+  end if
+  open theFile
+  set index of current page of document 1 to %d
+end tell
+`, absPath, page)
+		go exec.Command("osascript", "-e", script).Run()
+	case "Preview":
+		exec.Command("open", "-a", appName, absPath).Start()
+	}
 }
 
 func (d *DocumentViewer) startSearch(inputChan <-chan byte) {

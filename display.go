@@ -576,40 +576,16 @@ func (d *DocumentViewer) displayDualPage(termWidth, termHeight int) {
 
 func (d *DocumentViewer) displayDualVertical(page1 int, hasPage2 bool, termWidth, termHeight, reserved int) {
 	availableHeight := termHeight - reserved
-	halfHeight := availableHeight / 2
 
-	// Render page 1 in top half
 	fmt.Print("\033[1;1H")
-	imgHeight1 := d.renderPageImage(page1, termWidth, halfHeight)
-	if imgHeight1 <= 0 {
-		fmt.Print("\033[1;1H")
-		fmt.Printf("  [Page %d - render failed]", page1+1)
-		imgHeight1 = 1
-	}
-
-	// Clear gap between page 1 image and page 2 start
-	for row := imgHeight1 + 1; row <= halfHeight; row++ {
-		fmt.Printf("\033[%d;1H\033[K", row)
-	}
-
-	// Render page 2 in bottom half
-	startRow2 := halfHeight + 1
-	fmt.Printf("\033[%d;1H", startRow2)
-
+	var page2 int
 	if hasPage2 {
-		page2 := d.textPages[d.currentPage+1]
-		imgHeight2 := d.renderPageImage(page2, termWidth, halfHeight)
-		if imgHeight2 <= 0 {
-			fmt.Printf("  [Page %d - render failed]", page2+1)
-		}
-	} else {
-		fmt.Print("  [End of document]")
+		page2 = d.textPages[d.currentPage+1]
 	}
-
-	// Clear remaining lines
-	clearStart := termHeight - reserved + 1
-	for row := clearStart; row < termHeight; row++ {
-		fmt.Printf("\033[%d;1H\033[K", row)
+	imgHeight := d.renderDualComposite(page1, page2, hasPage2, termWidth, availableHeight, "vertical", 1)
+	if imgHeight <= 0 {
+		fmt.Print("\033[1;1H")
+		fmt.Printf("  [Render failed]")
 	}
 
 	// Status bar
@@ -619,27 +595,16 @@ func (d *DocumentViewer) displayDualVertical(page1 int, hasPage2 bool, termWidth
 
 func (d *DocumentViewer) displayDualHorizontal(page1 int, hasPage2 bool, termWidth, termHeight, reserved int) {
 	availableHeight := termHeight - reserved
-	halfWidth := termWidth / 2
 
-	// Render page 1 on left half
 	fmt.Print("\033[1;1H")
-	imgHeight1 := d.renderPageImage(page1, halfWidth, availableHeight)
-	if imgHeight1 <= 0 {
-		fmt.Print("\033[1;1H")
-		fmt.Printf("  [Page %d - render failed]", page1+1)
-	}
-
-	// Render page 2 on right half
-	fmt.Printf("\033[1;%dH", halfWidth+1)
-
+	var page2 int
 	if hasPage2 {
-		page2 := d.textPages[d.currentPage+1]
-		imgHeight2 := d.renderPageImage(page2, halfWidth, availableHeight)
-		if imgHeight2 <= 0 {
-			fmt.Printf("  [Page %d - render failed]", page2+1)
-		}
-	} else {
-		fmt.Print("  [End of document]")
+		page2 = d.textPages[d.currentPage+1]
+	}
+	imgHeight := d.renderDualComposite(page1, page2, hasPage2, termWidth, availableHeight, "horizontal", 1)
+	if imgHeight <= 0 {
+		fmt.Print("\033[1;1H")
+		fmt.Printf("  [Render failed]")
 	}
 
 	// Status bar
