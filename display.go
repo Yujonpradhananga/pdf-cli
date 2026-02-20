@@ -57,7 +57,7 @@ func (d *DocumentViewer) getPageContentType(pageNum int) string {
 
 	// For PDFs, prefer image rendering - it's more faithful to the original
 	// especially for math, diagrams, and formatted content
-	if d.fileType == "pdf" {
+	if d.fileType == "pdf" || d.fileType == "html" || d.fileType == "htm" {
 		if d.pageHasVisualContent(pageNum) {
 			return "image"
 		}
@@ -126,13 +126,23 @@ func (d *DocumentViewer) displayTextPage(pageNum, termWidth, termHeight int) {
 	reflowedLines := d.reflowText(text, effectiveWidth)
 	reserved := 2
 	available := termHeight - reserved
+
+	// Dark mode: white text on dark gray background
+	if d.darkMode != "" {
+		fmt.Print("\033[38;2;255;255;255m\033[48;2;30;30;30m")
+	}
+
 	row := 1
 	for i, line := range reflowedLines {
 		if row > available {
 			break
 		}
 		fmt.Printf("\033[%d;1H", row)
-		fmt.Printf("  %s", d.highlightSearchMatches(line))
+		if d.darkMode != "" {
+			fmt.Printf("\033[K  %s", d.highlightSearchMatches(line))
+		} else {
+			fmt.Printf("  %s", d.highlightSearchMatches(line))
+		}
 		row++
 		if i == len(reflowedLines)-1 {
 			break
@@ -140,8 +150,16 @@ func (d *DocumentViewer) displayTextPage(pageNum, termWidth, termHeight int) {
 	}
 	for row <= available {
 		fmt.Printf("\033[%d;1H", row)
-		fmt.Print(strings.Repeat(" ", termWidth))
+		if d.darkMode != "" {
+			fmt.Print("\033[K")
+		} else {
+			fmt.Print(strings.Repeat(" ", termWidth))
+		}
 		row++
+	}
+
+	if d.darkMode != "" {
+		fmt.Print("\033[0m") // reset colors
 	}
 	fmt.Printf("\033[%d;1H", termHeight-1)
 	fmt.Print(strings.Repeat(" ", termWidth))
@@ -280,8 +298,19 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 	}
 	fitIndicator := fmt.Sprintf(" [fit:%s]", d.fitMode)
 	scaleIndicator := ""
-	if d.scaleFactor != 1.0 {
+	if d.isReflowable {
+		// Show zoom as percentage relative to A4 width (595pt)
+		zoomPct := 595 * 100 / d.htmlPageWidth
+		scaleIndicator = fmt.Sprintf(" [zoom:%d%%]", zoomPct)
+	} else if d.scaleFactor != 1.0 {
 		scaleIndicator = fmt.Sprintf(" [%.0f%%]", d.scaleFactor*100)
+	}
+	darkIndicator := ""
+	switch d.darkMode {
+	case "smart":
+		darkIndicator = " [dark]"
+	case "invert":
+		darkIndicator = " [dark:inv]"
 	}
 	searchIndicator := ""
 	if d.searchQuery != "" {
@@ -291,12 +320,8 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 			searchIndicator = fmt.Sprintf(" [/%s: no matches]", d.searchQuery)
 		}
 	}
-	var pageInfo string
-	if d.fileType == "epub" {
-		pageInfo = fmt.Sprintf("Page %d/%d (%s)%s%s%s%s - EPUB", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, searchIndicator)
-	} else {
-		pageInfo = fmt.Sprintf("Page %d/%d (%s)%s%s%s%s - PDF", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, searchIndicator)
-	}
+	typeLabel := strings.ToUpper(d.fileType)
+	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, darkIndicator, searchIndicator, typeLabel)
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
 	}
@@ -477,6 +502,8 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	fmt.Println("Display:")
 	fmt.Println("  t                   - Toggle view mode (auto/text/image)")
 	fmt.Println("  f                   - Cycle fit mode (height/width/auto)")
+	fmt.Println("  i                   - Toggle dark mode (smart invert, preserves hue)")
+	fmt.Println("  D                   - Toggle dark mode (simple color invert)")
 	fmt.Println("  +/-                 - Zoom in/out (10%-200%)")
 	fmt.Println("  r                   - Refresh cell size (after resolution change)")
 	fmt.Println("  d                   - Show debug info")
@@ -494,7 +521,7 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 		fmt.Println("  - HTML entities are converted to readable text")
 	}
 	fmt.Println()
-	fmt.Println("Supported formats: PDF, EPUB, DOCX")
+	fmt.Println("Supported formats: PDF, EPUB, DOCX, HTML")
 	fmt.Println()
 	fmt.Println(strings.Repeat("=", termWidth))
 	fmt.Println("Press any key to return...")

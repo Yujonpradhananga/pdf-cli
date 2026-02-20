@@ -49,7 +49,7 @@ func (fs *FileSearcher) ScanDirectories() error {
 
 	// Use a map to track unique files and avoid duplicates
 	uniqueFiles := make(map[string]bool)
-	
+
 	for _, dir := range searchDirs {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
@@ -91,7 +91,7 @@ func (fs *FileSearcher) ScanDirectories() error {
 	for file := range uniqueFiles {
 		fs.files = append(fs.files, file)
 	}
-	
+
 	fmt.Printf("Found %d files\n\n", len(fs.files))
 	return nil
 }
@@ -119,22 +119,8 @@ func (fs *FileSearcher) ScanDirectory(dir string) error {
 			return nil
 		}
 
-		// Skip common large directories
-		if info.IsDir() && (info.Name() == "node_modules" || info.Name() == "vendor") {
-			return filepath.SkipDir
-		}
-
-		// Only collect supported files
-		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path))
-			if ext == ".pdf" || ext == ".epub" || ext == ".docx" {
-				files = append(files, path)
-			}
-		}
-
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}

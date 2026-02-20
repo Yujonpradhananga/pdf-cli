@@ -36,8 +36,11 @@ type DocumentViewer struct {
 	cellHeight   float64   // cached cell height in pixels
 	lastTermCols int       // last known terminal columns (for change detection)
 	lastTermRows int       // last known terminal rows (for change detection)
-	fifoPath     string    // path to FIFO for external page jump commands
-	skipClear    bool      // skip screen clear on next display (for smooth reload)
+	fifoPath      string // path to FIFO for external page jump commands
+	skipClear     bool   // skip screen clear on next display (for smooth reload)
+	htmlPageWidth int    // virtual page width in points for HTML layout (wider = smaller text)
+	isReflowable  bool   // true for HTML (supports layout adjustment)
+	darkMode      string // "": off, "smart": HSL invert, "invert": simple RGB invert
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -46,13 +49,17 @@ func NewDocumentViewer(path string) *DocumentViewer {
 
 	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("docviewer_%d", time.Now().UnixNano()))
 
-	return &DocumentViewer{
-		path:        path,
-		fileType:    fileType,
-		tempDir:     tempDir,
-		fitMode:     "height", // default: fit to height
-		scaleFactor: 1.0,
+	dv := &DocumentViewer{
+		path:         path,
+		fileType:     fileType,
+		tempDir:      tempDir,
+		fitMode:      "height", // default: fit to height
+		scaleFactor:  1.0,
+		htmlPageWidth: 1000, // default: wider than A4 (595pt) so text appears smaller
+		isReflowable: fileType == "html" || fileType == "htm",
 	}
+
+	return dv
 }
 
 func (d *DocumentViewer) Open() error {
@@ -61,6 +68,11 @@ func (d *DocumentViewer) Open() error {
 		return fmt.Errorf("error opening %s: %v", d.fileType, err)
 	}
 	d.doc = doc
+
+	// For reflowable documents (HTML), set the layout with our font size
+	if d.isReflowable {
+		d.applyHTMLLayout()
+	}
 
 	// Store modification time for auto-reload
 	if info, err := os.Stat(d.path); err == nil {
@@ -72,6 +84,45 @@ func (d *DocumentViewer) Open() error {
 		return fmt.Errorf("no pages with extractable content found")
 	}
 	return nil
+}
+
+// applyHTMLLayout calls fz_layout_document to set page width for HTML files.
+// Wider page = more text per line = text appears smaller when scaled to terminal.
+func (d *DocumentViewer) applyHTMLLayout() {
+	// Height proportional to width (A4 ratio ~1.414), em=12 (MuPDF default)
+	h := float64(d.htmlPageWidth) * 1.414
+	layoutDocument(d.doc, float64(d.htmlPageWidth), h, 12)
+	d.findContentPages()
+}
+
+// adjustHTMLZoom changes the page width and preserves approximate scroll position.
+func (d *DocumentViewer) adjustHTMLZoom(delta int) {
+	// Remember approximate position as fraction through document
+	frac := 0.0
+	if len(d.textPages) > 1 {
+		frac = float64(d.currentPage) / float64(len(d.textPages)-1)
+	}
+
+	d.htmlPageWidth += delta
+	if d.htmlPageWidth < 200 {
+		d.htmlPageWidth = 200
+	}
+	if d.htmlPageWidth > 3000 {
+		d.htmlPageWidth = 3000
+	}
+
+	d.applyHTMLLayout()
+
+	// Restore approximate position
+	if len(d.textPages) > 1 {
+		d.currentPage = int(frac*float64(len(d.textPages)-1) + 0.5)
+	}
+	if d.currentPage >= len(d.textPages) {
+		d.currentPage = len(d.textPages) - 1
+	}
+	if d.currentPage < 0 {
+		d.currentPage = 0
+	}
 }
 
 func (d *DocumentViewer) findContentPages() {
@@ -393,7 +444,7 @@ func (d *DocumentViewer) checkAndReload() bool {
 			lastSize = newInfo.Size()
 		}
 
-		// Suppress stderr during PDF open
+		// Suppress stderr during document open
 		savedPage := d.currentPage
 		savedStderr, _ := syscall.Dup(2)
 		devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -422,7 +473,11 @@ func (d *DocumentViewer) checkAndReload() bool {
 		oldPage := d.currentPage
 
 		d.doc = doc
-		d.findContentPages()
+		if d.isReflowable {
+			d.applyHTMLLayout()
+		} else {
+			d.findContentPages()
+		}
 
 		if len(d.textPages) == 0 {
 			// New doc is invalid/corrupted, keep old one
@@ -488,14 +543,24 @@ func (d *DocumentViewer) handleInput(c byte) int {
 	case 'N':
 		d.prevSearchHit()
 	case '+', '=':
-		d.scaleFactor += 0.1
-		if d.scaleFactor > 2.0 {
-			d.scaleFactor = 2.0
+		if d.isReflowable {
+			// Narrower page = larger text
+			d.adjustHTMLZoom(-100)
+		} else {
+			d.scaleFactor += 0.1
+			if d.scaleFactor > 2.0 {
+				d.scaleFactor = 2.0
+			}
 		}
 	case '-', '_':
-		d.scaleFactor -= 0.1
-		if d.scaleFactor < 0.1 {
-			d.scaleFactor = 0.1
+		if d.isReflowable {
+			// Wider page = smaller text
+			d.adjustHTMLZoom(100)
+		} else {
+			d.scaleFactor -= 0.1
+			if d.scaleFactor < 0.1 {
+				d.scaleFactor = 0.1
+			}
 		}
 	case 'r':
 		// Refresh cell size (useful after resolution/monitor change)
@@ -507,6 +572,18 @@ func (d *DocumentViewer) handleInput(c byte) int {
 	case 'O':
 		absPath, _ := filepath.Abs(d.path)
 		exec.Command("open", "-R", absPath).Start()
+	case 'i':
+		if d.darkMode == "smart" {
+			d.darkMode = ""
+		} else {
+			d.darkMode = "smart"
+		}
+	case 'D':
+		if d.darkMode == "invert" {
+			d.darkMode = ""
+		} else {
+			d.darkMode = "invert"
+		}
 	case 'd':
 		// Debug: show detected dimensions
 		return -4 // signal: show debug info
