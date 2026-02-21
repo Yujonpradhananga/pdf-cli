@@ -19,10 +19,10 @@ A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolut
 - **Fuzzy File Search**: Interactive file picker with fuzzy search to quickly find your PDFs and EPUBs
 - **Smart Content Detection**: Automatically detects and displays text, images, or mixed content pages
 - **High-Resolution Image Rendering**: Uses terminal graphics protocols (Sixel/Kitty/iTerm2) for crisp image display
+- **Image Invert**: Inverts the Image while preserving the core colors of the image.
 - **HiDPI/Retina Support**: Dynamic cell size detection for sharp rendering on high-DPI displays
 - **Auto-Reload**: Automatically reloads when the PDF changes (perfect for LaTeX compilation with `latexmk -pvc`)
 - **Fit Modes**: Toggle between height-fit, width-fit, and auto-fit modes
-- **Dark Mode Options**: Smart invert (`i`, preserves hue) and simple invert (`D`)
 - **Manual Zoom**: Adjust zoom from 10% to 200%
 - **In-Document Search**: Search for text within documents
 - **Intelligent Text Reflow**: Automatically reformats text to fit your terminal width while preserving paragraphs
@@ -42,8 +42,6 @@ A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolut
 | `N` | Previous search result |
 | `t` | Toggle text/image/auto mode |
 | `f` | Cycle fit modes (height/width/auto) |
-| `i` | Toggle dark mode (smart invert, preserves hue) |
-| `D` | Toggle dark mode (simple invert) |
 | `+` / `=` | Zoom in |
 | `-` | Zoom out |
 | `r` | Refresh display (re-detect cell size) |
