@@ -41,6 +41,7 @@ type DocumentViewer struct {
 	htmlPageWidth int    // virtual page width in points for HTML layout (wider = smaller text)
 	isReflowable  bool   // true for HTML (supports layout adjustment)
 	darkMode      string // "": off, "smart": HSL invert, "invert": simple RGB invert
+	dualPageMode  string // "": off, "vertical": stacked, "horizontal": side-by-side
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -523,7 +524,7 @@ func (d *DocumentViewer) handleInput(c byte) int {
 		}
 	case 'g':
 		return -2 // signal: go to page
-	case 'h':
+	case 'h', '?':
 		return -3 // signal: show help
 	case 't':
 		d.toggleViewMode()
@@ -587,6 +588,31 @@ func (d *DocumentViewer) handleInput(c byte) int {
 	case 'd':
 		// Debug: show detected dimensions
 		return -4 // signal: show debug info
+	case '2':
+		switch d.dualPageMode {
+		case "":
+			d.dualPageMode = "vertical"
+		case "vertical":
+			d.dualPageMode = "horizontal"
+		default:
+			d.dualPageMode = ""
+		}
+	case 'J': // Shift+Down/Right: jump 2 pages (in dual mode)
+		if d.dualPageMode != "" {
+			if d.currentPage < len(d.textPages)-2 {
+				d.currentPage += 2
+			} else if d.currentPage < len(d.textPages)-1 {
+				d.currentPage = len(d.textPages) - 1
+			}
+		}
+	case 'K': // Shift+Up/Left: jump back 2 pages (in dual mode)
+		if d.dualPageMode != "" {
+			if d.currentPage >= 2 {
+				d.currentPage -= 2
+			} else {
+				d.currentPage = 0
+			}
+		}
 	case 27: // ESC key (arrow keys handled in readSingleChar)
 		// Do nothing for plain ESC
 	}
@@ -596,18 +622,26 @@ func (d *DocumentViewer) handleInput(c byte) int {
 func (d *DocumentViewer) openInExternalApp(appName string) {
 	absPath, _ := filepath.Abs(d.path)
 	page := d.currentPage + 1 // convert 0-indexed to 1-indexed
-	exec.Command("open", "-a", appName, absPath).Start()
-	// Navigate to the current page after the app opens
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		switch appName {
-		case "Skim":
-			script := fmt.Sprintf(`tell application "Skim" to set index of current page of document 1 to %d`, page)
-			exec.Command("osascript", "-e", script).Run()
-		case "Preview":
-			// Preview has limited AppleScript support; just open the file
-		}
-	}()
+	switch appName {
+	case "Skim":
+		// Revert (reload) if already open, then open and navigate to page
+		script := fmt.Sprintf(`
+set theFile to POSIX file "%s"
+tell application "Skim"
+  set theDocs to get documents whose path is (get POSIX path of theFile)
+  if (count of theDocs) > 0 then
+    try
+      revert theDocs
+    end try
+  end if
+  open theFile
+  set index of current page of document 1 to %d
+end tell
+`, absPath, page)
+		go exec.Command("osascript", "-e", script).Run()
+	case "Preview":
+		exec.Command("open", "-a", appName, absPath).Start()
+	}
 }
 
 func (d *DocumentViewer) startSearch(inputChan <-chan byte) {

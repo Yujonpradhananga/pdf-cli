@@ -252,10 +252,10 @@ func (d *DocumentViewer) readSingleChar() byte {
 		return 0
 	}
 
-	// Handle escape sequences (arrow keys)
+	// Handle escape sequences (arrow keys, shift+arrow)
 	if buf[0] == 27 {
-		seq := make([]byte, 2)
-		n, _ := os.Stdin.Read(seq)
+		seq := make([]byte, 5)
+		n, _ := os.Stdin.Read(seq[:2])
 		if n >= 2 && seq[0] == '[' {
 			switch seq[1] {
 			case 'A': // Up arrow -> previous page (like k)
@@ -266,6 +266,21 @@ func (d *DocumentViewer) readSingleChar() byte {
 				return 'j'
 			case 'D': // Left arrow -> previous page
 				return 'k'
+			case '1':
+				// Could be shift+arrow: ESC [ 1 ; 2 A/B/C/D
+				n2, _ := os.Stdin.Read(seq[2:5])
+				if n2 >= 3 && seq[2] == ';' && seq[3] == '2' {
+					switch seq[4] {
+					case 'A': // Shift+Up
+						return 'K' // uppercase = shift
+					case 'B': // Shift+Down
+						return 'J' // uppercase = shift
+					case 'C': // Shift+Right
+						return 'J' // uppercase = shift (forward)
+					case 'D': // Shift+Left
+						return 'K' // uppercase = shift (backward)
+					}
+				}
 			}
 		}
 		return 27 // Plain ESC
