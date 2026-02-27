@@ -119,6 +119,12 @@ func (fs *FileSearcher) ScanDirectory(dir string) error {
 			return nil
 		}
 
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".pdf" || ext == ".epub" || ext == ".docx" || ext == ".html" || ext == ".htm" {
+			files = append(files, path)
+		}
+
 		return nil
 	})
 	if err != nil {
