@@ -13,6 +13,32 @@ import (
 	"github.com/blacktop/go-termimg"
 )
 
+// cropImage trims fractions of each edge from an image.
+// Uses SubImage (zero-copy) when the image type supports it.
+func cropImage(img image.Image, top, bottom, left, right float64) image.Image {
+	if top == 0 && bottom == 0 && left == 0 && right == 0 {
+		return img
+	}
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	x0 := b.Min.X + int(float64(w)*left)
+	x1 := b.Max.X - int(float64(w)*right)
+	y0 := b.Min.Y + int(float64(h)*top)
+	y1 := b.Max.Y - int(float64(h)*bottom)
+	if x1 <= x0 || y1 <= y0 {
+		return img
+	}
+	type subImager interface {
+		SubImage(r image.Rectangle) image.Image
+	}
+	if si, ok := img.(subImager); ok {
+		return si.SubImage(image.Rect(x0, y0, x1, y1))
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, x1-x0, y1-y0))
+	draw.Draw(dst, dst.Bounds(), img, image.Pt(x0, y0), draw.Src)
+	return dst
+}
+
 func (d *DocumentViewer) renderPageImage(pageNum, maxWidth, maxHeight int) int {
 	return d.renderPageImageAligned(pageNum, maxWidth, maxHeight, "center")
 }
@@ -136,6 +162,9 @@ func (d *DocumentViewer) savePageAsImage(pageNum, termWidth, termHeight int, ter
 	case "invert":
 		finalImg = simpleInvert(img)
 	}
+
+	// Apply user crop
+	finalImg = cropImage(finalImg, d.cropTop, d.cropBottom, d.cropLeft, d.cropRight)
 
 	bounds := finalImg.Bounds()
 	actualWidth := bounds.Dx()
@@ -277,6 +306,7 @@ func (d *DocumentViewer) renderDualComposite(page1, page2 int, hasPage2 bool, te
 	if err != nil {
 		return 0
 	}
+	page1Img = cropImage(page1Img, d.cropTop, d.cropBottom, d.cropLeft, d.cropRight)
 
 	var page2Img image.Image
 	if hasPage2 {
@@ -284,6 +314,7 @@ func (d *DocumentViewer) renderDualComposite(page1, page2 int, hasPage2 bool, te
 		if err != nil {
 			return 0
 		}
+		page2Img = cropImage(page2Img, d.cropTop, d.cropBottom, d.cropLeft, d.cropRight)
 	}
 
 	b1 := page1Img.Bounds()
@@ -381,6 +412,88 @@ func (d *DocumentViewer) renderDualComposite(page1, page2 int, hasPage2 bool, te
 	}
 
 	return d.renderWithTermImg(imagePath, actualLines, horizontalOffset, imageWidthInChars, compositeW, compositeH, termType)
+}
+
+// renderHalfPage renders only the top or bottom 55% of a page, scaled to fill the terminal.
+// isBottom=false shows top 55%, isBottom=true shows bottom 55%.
+func (d *DocumentViewer) renderHalfPage(pageNum, termWidth, termHeight int, isBottom bool) int {
+	if termHeight <= 0 {
+		return 0
+	}
+
+	termType := d.detectTerminalType()
+	pixelsPerChar, pixelsPerLine := d.getTerminalCellSize()
+
+	// Render at ~1.82x terminal height so that 55% of the image fills termHeight exactly.
+	renderHeight := termHeight * 20 / 11
+
+	img, err := d.renderPageToImage(pageNum, termWidth, renderHeight, termType)
+	if err != nil {
+		return 0
+	}
+
+	bounds := img.Bounds()
+	fullH := bounds.Dy()
+	fullW := bounds.Dx()
+
+	// 55% crop of full image height
+	cropH := fullH * 55 / 100
+	if cropH <= 0 {
+		cropH = fullH
+	}
+
+	var cropY int
+	if isBottom {
+		cropY = fullH - cropH
+	}
+
+	// Crop
+	cropped := image.NewRGBA(image.Rect(0, 0, fullW, cropH))
+	draw.Draw(cropped, cropped.Bounds(), img, image.Pt(bounds.Min.X, bounds.Min.Y+cropY), draw.Src)
+
+	// Apply user crops: only outer edge (not the inner split)
+	var userTop, userBottom float64
+	if isBottom {
+		userBottom = d.cropBottom // outer edge for bottom half
+	} else {
+		userTop = d.cropTop // outer edge for top half
+	}
+	var croppedImg image.Image = cropped
+	croppedImg = cropImage(croppedImg, userTop, userBottom, d.cropLeft, d.cropRight)
+
+	// Save
+	if err := os.MkdirAll(d.tempDir, 0o755); err != nil {
+		return 0
+	}
+	imagePath := filepath.Join(d.tempDir, "half.png")
+	file, err := os.Create(imagePath)
+	if err != nil {
+		return 0
+	}
+	if err := png.Encode(file, croppedImg); err != nil {
+		file.Close()
+		os.Remove(imagePath)
+		return 0
+	}
+	file.Close()
+	defer os.Remove(imagePath)
+
+	cb := croppedImg.Bounds()
+	finalW := cb.Dx()
+	finalH := cb.Dy()
+
+	actualLines := int(float64(finalH)/pixelsPerLine) + 1
+	if actualLines > termHeight {
+		actualLines = termHeight
+	}
+	imageWidthInChars := int(float64(finalW)/pixelsPerChar) + 1
+
+	horizontalOffset := (termWidth - imageWidthInChars) / 2
+	if horizontalOffset < 0 {
+		horizontalOffset = 0
+	}
+
+	return d.renderWithTermImg(imagePath, actualLines, horizontalOffset, imageWidthInChars, finalW, finalH, termType)
 }
 
 func (d *DocumentViewer) renderWithTermImg(imagePath string, estimatedLines int, horizontalOffset int, widthChars int, pixelWidth int, pixelHeight int, termType string) int {
