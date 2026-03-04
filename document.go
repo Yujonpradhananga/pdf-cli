@@ -40,8 +40,13 @@ type DocumentViewer struct {
 	skipClear     bool   // skip screen clear on next display (for smooth reload)
 	htmlPageWidth int    // virtual page width in points for HTML layout (wider = smaller text)
 	isReflowable  bool   // true for HTML (supports layout adjustment)
-	darkMode      string // "": off, "smart": HSL invert, "invert": simple RGB invert
-	dualPageMode  string // "": off, "vertical": stacked, "horizontal": side-by-side
+	darkMode       string // "": off, "smart": HSL invert, "invert": simple RGB invert
+	dualPageMode   string // "": off, "vertical": stacked, "horizontal": side-by-side, "half": half-page
+	halfPageOffset int    // 0: top half, 1: bottom half (used when dualPageMode == "half")
+	cropTop        float64 // fraction to cut from top edge (0.0–0.45)
+	cropBottom     float64 // fraction to cut from bottom edge
+	cropLeft       float64 // fraction to cut from left edge
+	cropRight      float64 // fraction to cut from right edge
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -515,11 +520,29 @@ func (d *DocumentViewer) handleInput(c byte) int {
 		d.wantBack = true
 		return 1
 	case 'j', ' ':
-		if d.currentPage < len(d.textPages)-1 {
+		if d.dualPageMode == "half" {
+			if d.halfPageOffset == 0 {
+				d.halfPageOffset = 1
+			} else {
+				d.halfPageOffset = 0
+				if d.currentPage < len(d.textPages)-1 {
+					d.currentPage++
+				}
+			}
+		} else if d.currentPage < len(d.textPages)-1 {
 			d.currentPage++
 		}
 	case 'k':
-		if d.currentPage > 0 {
+		if d.dualPageMode == "half" {
+			if d.halfPageOffset == 1 {
+				d.halfPageOffset = 0
+			} else {
+				d.halfPageOffset = 1
+				if d.currentPage > 0 {
+					d.currentPage--
+				}
+			}
+		} else if d.currentPage > 0 {
 			d.currentPage--
 		}
 	case 'g':
@@ -594,6 +617,9 @@ func (d *DocumentViewer) handleInput(c byte) int {
 			d.dualPageMode = "vertical"
 		case "vertical":
 			d.dualPageMode = "horizontal"
+		case "horizontal":
+			d.dualPageMode = "half"
+			d.halfPageOffset = 0
 		default:
 			d.dualPageMode = ""
 		}
@@ -613,6 +639,16 @@ func (d *DocumentViewer) handleInput(c byte) int {
 				d.currentPage = 0
 			}
 		}
+	case '{': // shift+[ — cut more from top
+		d.cropTop = min(d.cropTop+0.02, 0.45)
+	case '}': // shift+] — cut more from bottom
+		d.cropBottom = min(d.cropBottom+0.02, 0.45)
+	case '[': // cut more from left
+		d.cropLeft = min(d.cropLeft+0.02, 0.45)
+	case ']': // cut more from right
+		d.cropRight = min(d.cropRight+0.02, 0.45)
+	case '\\': // backslash — reset all crops
+		d.cropTop, d.cropBottom, d.cropLeft, d.cropRight = 0, 0, 0, 0
 	case 27: // ESC key (arrow keys handled in readSingleChar)
 		// Do nothing for plain ESC
 	}

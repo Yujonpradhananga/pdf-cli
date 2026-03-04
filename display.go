@@ -28,6 +28,13 @@ func (d *DocumentViewer) displayCurrentPage() {
 	fmt.Print("\033[1G")
 	fmt.Print("\033[0m")
 
+	if d.dualPageMode == "half" {
+		d.displayHalfPage(termWidth, termHeight)
+		fmt.Print("\033[9999;1H")
+		fmt.Print("\033[?2026l")
+		os.Stdout.Sync()
+		return
+	}
 	if d.dualPageMode != "" {
 		d.displayDualPage(termWidth, termHeight)
 		fmt.Print("\033[9999;1H")
@@ -320,6 +327,10 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 	case "invert":
 		darkIndicator = " [dark:inv]"
 	}
+	cropIndicator := ""
+	if d.cropTop > 0 || d.cropBottom > 0 || d.cropLeft > 0 || d.cropRight > 0 {
+		cropIndicator = " [crop]"
+	}
 	searchIndicator := ""
 	if d.searchQuery != "" {
 		if len(d.searchHits) > 0 {
@@ -329,7 +340,75 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 		}
 	}
 	typeLabel := strings.ToUpper(d.fileType)
-	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, darkIndicator, searchIndicator, typeLabel)
+	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, darkIndicator, cropIndicator, searchIndicator, typeLabel)
+	if len(pageInfo) > termWidth {
+		pageInfo = pageInfo[:termWidth-3] + "..."
+	}
+	if len(pageInfo) < termWidth {
+		padding := (termWidth - len(pageInfo)) / 2
+		fmt.Printf("%s%s", strings.Repeat(" ", padding), pageInfo)
+	} else {
+		fmt.Print(pageInfo)
+	}
+}
+
+func (d *DocumentViewer) displayHalfPage(termWidth, termHeight int) {
+	pageNum := d.textPages[d.currentPage]
+	reserved := 2
+	availableHeight := termHeight - reserved
+	isBottom := d.halfPageOffset == 1
+
+	fmt.Print("\033[1;1H")
+	imgHeight := d.renderHalfPage(pageNum, termWidth, availableHeight, isBottom)
+	if imgHeight <= 0 {
+		fmt.Print("\033[1;1H")
+		fmt.Printf("  [Render failed]")
+	}
+
+	fmt.Printf("\033[%d;1H", termHeight)
+	d.displayHalfPageInfo(termWidth)
+}
+
+func (d *DocumentViewer) displayHalfPageInfo(termWidth int) {
+	pageNum := d.currentPage + 1
+	totalPages := len(d.textPages)
+	halfLabel := "top"
+	if d.halfPageOffset == 1 {
+		halfLabel = "bot"
+	}
+
+	fitIndicator := fmt.Sprintf(" [fit:%s]", d.fitMode)
+	scaleIndicator := ""
+	if d.isReflowable {
+		zoomPct := 595 * 100 / d.htmlPageWidth
+		scaleIndicator = fmt.Sprintf(" [zoom:%d%%]", zoomPct)
+	} else if d.scaleFactor != 1.0 {
+		scaleIndicator = fmt.Sprintf(" [%.0f%%]", d.scaleFactor*100)
+	}
+	darkIndicator := ""
+	switch d.darkMode {
+	case "smart":
+		darkIndicator = " [dark]"
+	case "invert":
+		darkIndicator = " [dark:inv]"
+	}
+	cropIndicator := ""
+	if d.cropTop > 0 || d.cropBottom > 0 || d.cropLeft > 0 || d.cropRight > 0 {
+		cropIndicator = " [crop]"
+	}
+	searchIndicator := ""
+	if d.searchQuery != "" {
+		if len(d.searchHits) > 0 {
+			searchIndicator = fmt.Sprintf(" [/%s: %d/%d]", d.searchQuery, d.searchHitIdx+1, len(d.searchHits))
+		} else {
+			searchIndicator = fmt.Sprintf(" [/%s: no matches]", d.searchQuery)
+		}
+	}
+
+	typeLabel := strings.ToUpper(d.fileType)
+	pageInfo := fmt.Sprintf("Page %d/%d (Image) [½pg:%s]%s%s%s%s%s - %s",
+		pageNum, totalPages, halfLabel, fitIndicator, scaleIndicator, darkIndicator, cropIndicator, searchIndicator, typeLabel)
+
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
 	}
@@ -517,9 +596,17 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	p("  i                   - Toggle dark mode (smart invert, preserves hue)")
 	p("  D                   - Toggle dark mode (simple color invert)")
 	p("  +/-                 - Zoom in/out (10%-200%)")
-	p("  2                   - Cycle dual page (off/vertical/horizontal)")
+	p("  2                   - Cycle view (off/vertical/horizontal/half-page)")
 	p("  Shift+Left/Right    - Jump 2 pages (in dual page mode)")
+	p("  Arrow/j/k           - Navigate by half-page (in half-page mode)")
 	p("  r                   - Refresh cell size (after resolution change)")
+	p("")
+	p("Crop (trim page edges, session-only):")
+	p("  {                   - Crop top edge (press multiple times)")
+	p("  }                   - Crop bottom edge")
+	p("  [                   - Crop left edge")
+	p("  ]                   - Crop right edge")
+	p("  \\                   - Reset all crops")
 	p("  d                   - Show debug info")
 	p("  S                   - Open in Skim")
 	p("  P                   - Open in Preview")
@@ -639,6 +726,10 @@ func (d *DocumentViewer) displayDualPageInfo(hasPage2 bool, termWidth int, modeL
 	case "invert":
 		darkIndicator = " [dark:inv]"
 	}
+	cropIndicator := ""
+	if d.cropTop > 0 || d.cropBottom > 0 || d.cropLeft > 0 || d.cropRight > 0 {
+		cropIndicator = " [crop]"
+	}
 	searchIndicator := ""
 	if d.searchQuery != "" {
 		if len(d.searchHits) > 0 {
@@ -649,8 +740,8 @@ func (d *DocumentViewer) displayDualPageInfo(hasPage2 bool, termWidth int, modeL
 	}
 
 	typeLabel := strings.ToUpper(d.fileType)
-	pageInfo := fmt.Sprintf("%s (Image) [%s]%s%s%s%s - %s",
-		pageRange, modeLabel, fitIndicator, scaleIndicator, darkIndicator, searchIndicator, typeLabel)
+	pageInfo := fmt.Sprintf("%s (Image) [%s]%s%s%s%s%s - %s",
+		pageRange, modeLabel, fitIndicator, scaleIndicator, darkIndicator, cropIndicator, searchIndicator, typeLabel)
 
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
