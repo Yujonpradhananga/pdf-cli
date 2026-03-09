@@ -424,21 +424,57 @@ func (d *DocumentViewer) renderHalfPage(pageNum, termWidth, termHeight int, isBo
 	termType := d.detectTerminalType()
 	pixelsPerChar, pixelsPerLine := d.getTerminalCellSize()
 
-	// Render at ~1.82x terminal height so that 55% of the image fills termHeight exactly.
-	renderHeight := termHeight * 20 / 11
-
-	img, err := d.renderPageToImage(pageNum, termWidth, renderHeight, termType)
+	// Compute DPI so that 55% of the page height fills termHeight exactly.
+	testImg, err := d.doc.ImageDPI(pageNum, 72.0)
 	if err != nil {
 		return 0
+	}
+	pageHeightAt72 := testImg.Bounds().Dy()
+
+	targetCropPixels := float64(termHeight) * pixelsPerLine
+	targetFullPixels := targetCropPixels / 0.55
+
+	scale := d.scaleFactor
+	if scale == 0 {
+		scale = 1.0
+	}
+	dpi := targetFullPixels / float64(pageHeightAt72) * 72.0 * scale
+
+	if dpi < 36 {
+		dpi = 36
+	}
+	maxDPI := 300.0
+	if termType != "kitty" {
+		maxDPI = 100.0
+	}
+	if dpi > maxDPI {
+		dpi = maxDPI
+	}
+
+	rawImg, err := d.doc.ImageDPI(pageNum, dpi)
+	if err != nil {
+		return 0
+	}
+
+	var img image.Image = rawImg
+	switch d.darkMode {
+	case "smart":
+		img = smartInvert(rawImg)
+	case "invert":
+		img = simpleInvert(rawImg)
 	}
 
 	bounds := img.Bounds()
 	fullH := bounds.Dy()
 	fullW := bounds.Dx()
 
-	// 55% crop of full image height
+	// Crop enough to fill termHeight; ideally 55%, but more if DPI was clamped.
+	targetCropH := int(targetCropPixels)
 	cropH := fullH * 55 / 100
-	if cropH <= 0 {
+	if cropH < targetCropH && targetCropH <= fullH {
+		cropH = targetCropH
+	}
+	if cropH <= 0 || cropH > fullH {
 		cropH = fullH
 	}
 
