@@ -354,8 +354,7 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 
 func (d *DocumentViewer) displayHalfPage(termWidth, termHeight int) {
 	pageNum := d.textPages[d.currentPage]
-	reserved := 2
-	availableHeight := termHeight - reserved
+	availableHeight := termHeight
 	isBottom := d.halfPageOffset == 1
 
 	fmt.Print("\033[1;1H")
@@ -363,60 +362,6 @@ func (d *DocumentViewer) displayHalfPage(termWidth, termHeight int) {
 	if imgHeight <= 0 {
 		fmt.Print("\033[1;1H")
 		fmt.Printf("  [Render failed]")
-	}
-
-	fmt.Printf("\033[%d;1H", termHeight)
-	d.displayHalfPageInfo(termWidth)
-}
-
-func (d *DocumentViewer) displayHalfPageInfo(termWidth int) {
-	pageNum := d.currentPage + 1
-	totalPages := len(d.textPages)
-	halfLabel := "top"
-	if d.halfPageOffset == 1 {
-		halfLabel = "bot"
-	}
-
-	fitIndicator := fmt.Sprintf(" [fit:%s]", d.fitMode)
-	scaleIndicator := ""
-	if d.isReflowable {
-		zoomPct := 595 * 100 / d.htmlPageWidth
-		scaleIndicator = fmt.Sprintf(" [zoom:%d%%]", zoomPct)
-	} else if d.scaleFactor != 1.0 {
-		scaleIndicator = fmt.Sprintf(" [%.0f%%]", d.scaleFactor*100)
-	}
-	darkIndicator := ""
-	switch d.darkMode {
-	case "smart":
-		darkIndicator = " [dark]"
-	case "invert":
-		darkIndicator = " [dark:inv]"
-	}
-	cropIndicator := ""
-	if d.cropTop > 0 || d.cropBottom > 0 || d.cropLeft > 0 || d.cropRight > 0 {
-		cropIndicator = " [crop]"
-	}
-	searchIndicator := ""
-	if d.searchQuery != "" {
-		if len(d.searchHits) > 0 {
-			searchIndicator = fmt.Sprintf(" [/%s: %d/%d]", d.searchQuery, d.searchHitIdx+1, len(d.searchHits))
-		} else {
-			searchIndicator = fmt.Sprintf(" [/%s: no matches]", d.searchQuery)
-		}
-	}
-
-	typeLabel := strings.ToUpper(d.fileType)
-	pageInfo := fmt.Sprintf("Page %d/%d (Image) [½pg:%s]%s%s%s%s%s - %s",
-		pageNum, totalPages, halfLabel, fitIndicator, scaleIndicator, darkIndicator, cropIndicator, searchIndicator, typeLabel)
-
-	if len(pageInfo) > termWidth {
-		pageInfo = pageInfo[:termWidth-3] + "..."
-	}
-	if len(pageInfo) < termWidth {
-		padding := (termWidth - len(pageInfo)) / 2
-		fmt.Printf("%s%s", strings.Repeat(" ", padding), pageInfo)
-	} else {
-		fmt.Print(pageInfo)
 	}
 }
 
