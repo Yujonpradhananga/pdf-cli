@@ -55,14 +55,24 @@ func NewDocumentViewer(path string) *DocumentViewer {
 
 	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("docviewer_%d", time.Now().UnixNano()))
 
+	absPath, _ := filepath.Abs(path)
+	cfg := loadDocConfig(absPath)
+
 	dv := &DocumentViewer{
-		path:         path,
-		fileType:     fileType,
-		tempDir:      tempDir,
-		fitMode:      "height", // default: fit to height
-		scaleFactor:  1.0,
-		htmlPageWidth: 1000, // default: wider than A4 (595pt) so text appears smaller
-		isReflowable: fileType == "html" || fileType == "htm",
+		path:          path,
+		fileType:      fileType,
+		tempDir:       tempDir,
+		fitMode:       cfg.FitMode,
+		scaleFactor:   cfg.ScaleFactor,
+		darkMode:      cfg.DarkMode,
+		dualPageMode:  cfg.DualPageMode,
+		forceMode:     cfg.ForceMode,
+		htmlPageWidth: cfg.HTMLPageWidth,
+		cropTop:       cfg.CropTop,
+		cropBottom:    cfg.CropBottom,
+		cropLeft:      cfg.CropLeft,
+		cropRight:     cfg.CropRight,
+		isReflowable:  fileType == "html" || fileType == "htm",
 	}
 
 	return dv
@@ -262,6 +272,7 @@ func (d *DocumentViewer) checkColorVariance(img image.Image) float64 {
 func (d *DocumentViewer) Run() bool {
 	defer d.doc.Close()
 	defer d.cleanup()
+	defer d.saveConfig()
 
 	// Cache cell size before entering raw mode (for Kitty query)
 	d.cellWidth, d.cellHeight = d.detectCellSize()
