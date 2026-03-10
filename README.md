@@ -19,6 +19,7 @@ A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolut
 - **Fuzzy File Search**: Interactive file picker with fuzzy search to quickly find your PDFs and EPUBs
 - **Smart Content Detection**: Automatically detects and displays text, images, or mixed content pages
 - **High-Resolution Image Rendering**: Uses terminal graphics protocols (Sixel/Kitty/iTerm2) for crisp image display
+- **Half Page View**:Supports screen splitting to display pages in halfpage view with high quality rendering.
 - **Image Invert**: Inverts the Image while preserving the core colors of the image.
 - **HiDPI/Retina Support**: Dynamic cell size detection for sharp rendering on high-DPI displays
 - **Auto-Reload**: Automatically reloads when the PDF changes (perfect for LaTeX compilation with `latexmk -pvc`)
