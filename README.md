@@ -7,9 +7,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/Yujonpradhananga/pdf-cli?style=for-the-badge&labelColor=181825&color=a6e3a1)
 
 </div>
-A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolution image rendering, auto-reload for LaTeX workflows, and intelligent text reflow.
-
-## Demo
+A terminal-based PDF, EPUB and DOCX viewer with fuzzy file search, high-resolution image rendering, auto-reload for LaTeX workflows intelligent text reflow and double page mode.
 
 <https://github.com/user-attachments/assets/7ba77b3f-7f7a-48aa-bf70-1f432650bdf1>
 
@@ -132,10 +130,10 @@ The viewer handles partially-written PDFs gracefully, waiting for the file to st
 Optimized for terminals with graphics support:
 
 - **Kitty** (recommended) - Native cell size detection via escape sequences
+- Foot
 - WezTerm
 - iTerm2
 - Alacritty
-- Foot
 - xterm (with Sixel support)
 
 Works in any terminal, but image rendering quality depends on terminal capabilities.
