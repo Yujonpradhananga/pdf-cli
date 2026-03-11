@@ -145,6 +145,9 @@ KEYBOARD SHORTCUTS:
         j, Space, Down, Right    Next page
         k, Up, Left              Previous page
         g                        Go to specific page
+        c                        Show chapter list (Table of Contents)
+        >                        Next chapter
+        <                        Previous chapter
         b                        Back to file picker
 
     Search:

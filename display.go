@@ -339,8 +339,19 @@ func (d *DocumentViewer) displayPageInfo(pageNum, termWidth int, contentType str
 			searchIndicator = fmt.Sprintf(" [/%s: no matches]", d.searchQuery)
 		}
 	}
+	// Show current chapter in status bar if available
+	chapterIndicator := ""
+	if len(d.chapters) > 0 {
+		d.updateCurrentChapter()
+		ch := d.chapters[d.currentChapter]
+		title := ch.Title
+		if len(title) > 30 {
+			title = title[:27] + "..."
+		}
+		chapterIndicator = fmt.Sprintf(" [Ch %d/%d: %s]", d.currentChapter+1, len(d.chapters), title)
+	}
 	typeLabel := strings.ToUpper(d.fileType)
-	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, darkIndicator, cropIndicator, searchIndicator, typeLabel)
+	pageInfo := fmt.Sprintf("Page %d/%d (%s)%s%s%s%s%s%s%s - %s", d.currentPage+1, len(d.textPages), contentType, modeIndicator, fitIndicator, scaleIndicator, darkIndicator, cropIndicator, chapterIndicator, searchIndicator, typeLabel)
 	if len(pageInfo) > termWidth {
 		pageInfo = pageInfo[:termWidth-3] + "..."
 	}
@@ -528,6 +539,9 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	p("  j/Space/Down/Right  - Next page")
 	p("  k/Up/Left           - Previous page")
 	p("  g                   - Go to specific page")
+	p("  c                   - Show chapter list (Table of Contents)")
+	p("  >                   - Next chapter")
+	p("  <                   - Previous chapter")
 	p("  b                   - Back to file list")
 	p("")
 	p("Search:")
@@ -572,6 +586,89 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	p(strings.Repeat("=", termWidth))
 	p("Press any key to return...")
 	<-inputChan
+}
+
+// showChapterList displays the table of contents and lets the user jump to a chapter.
+func (d *DocumentViewer) showChapterList(inputChan <-chan byte) {
+	fmt.Print("\033[2J\033[H") // clear screen
+	termWidth, termHeight := d.getTerminalSize()
+
+	p := func(s string) { fmt.Print(s + "\r\n") }
+
+	if len(d.chapters) == 0 {
+		p("No chapters found in this document.")
+		p("")
+		p("Press any key to return...")
+		<-inputChan
+		return
+	}
+
+	d.updateCurrentChapter()
+
+	p(strings.Repeat("=", termWidth))
+	p("Table of Contents")
+	p(strings.Repeat("=", termWidth))
+	p("")
+
+	available := termHeight - 7 // header + footer
+	for i, ch := range d.chapters {
+		if i >= available {
+			p(fmt.Sprintf("  ... and %d more chapters", len(d.chapters)-i))
+			break
+		}
+		indent := strings.Repeat("  ", ch.Level-1)
+		marker := "  "
+		if i == d.currentChapter {
+			marker = "> "
+		}
+		title := ch.Title
+		maxTitleLen := termWidth - len(indent) - len(marker) - 15
+		if maxTitleLen < 20 {
+			maxTitleLen = 20
+		}
+		if len(title) > maxTitleLen {
+			title = title[:maxTitleLen-3] + "..."
+		}
+		p(fmt.Sprintf("%s%s%2d. %s (p.%d)", marker, indent, i+1, title, ch.Page+1))
+	}
+
+	p("")
+	p(strings.Repeat("=", termWidth))
+	fmt.Print("Enter chapter number (or ESC to cancel): ")
+	fmt.Print("\033[?25h") // show cursor
+
+	var input []byte
+	for {
+		ch := <-inputChan
+		switch ch {
+		case 13, 10: // Enter
+			goto selectChapter
+		case 27: // Escape
+			fmt.Print("\033[?25l")
+			return
+		case 127, 8: // Backspace
+			if len(input) > 0 {
+				input = input[:len(input)-1]
+				_, rows := d.getTerminalSize()
+				fmt.Printf("\033[%d;1H\033[K", rows)
+				fmt.Printf("Enter chapter number (or ESC to cancel): %s", string(input))
+			}
+		default:
+			if ch >= '0' && ch <= '9' {
+				input = append(input, ch)
+				fmt.Printf("%c", ch)
+			}
+		}
+	}
+selectChapter:
+	fmt.Print("\033[?25l") // hide cursor
+	var num int
+	if _, err := fmt.Sscanf(string(input), "%d", &num); err == nil {
+		if num >= 1 && num <= len(d.chapters) {
+			d.currentChapter = num - 1
+			d.jumpToPage(d.chapters[d.currentChapter].Page + 1)
+		}
+	}
 }
 
 func (d *DocumentViewer) showDebugInfo(inputChan <-chan byte) {

@@ -16,6 +16,13 @@ import (
 	"golang.org/x/term"
 )
 
+// Chapter represents a document chapter/section from the ToC.
+type Chapter struct {
+	Title string
+	Page  int // 0-indexed page number in the document
+	Level int // nesting level (1 = top-level)
+}
+
 type DocumentViewer struct {
 	doc         *fitz.Document
 	currentPage int
@@ -47,6 +54,8 @@ type DocumentViewer struct {
 	cropBottom     float64 // fraction to cut from bottom edge
 	cropLeft       float64 // fraction to cut from left edge
 	cropRight      float64 // fraction to cut from right edge
+	chapters       []Chapter // table of contents / chapter list
+	currentChapter int       // index into chapters for current position
 }
 
 func NewDocumentViewer(path string) *DocumentViewer {
@@ -99,6 +108,10 @@ func (d *DocumentViewer) Open() error {
 	if len(d.textPages) == 0 {
 		return fmt.Errorf("no pages with extractable content found")
 	}
+
+	// Load table of contents for chapter navigation
+	d.loadChapters()
+
 	return nil
 }
 
@@ -151,9 +164,15 @@ func (d *DocumentViewer) findContentPages() {
 			hasContent = true
 		}
 
+		// For pages without text, check if they have visual content.
+		// Use Bound() as a fast pre-check, then only render if bounds look valid.
 		if !hasContent {
-			if d.pageHasVisualContent(i) {
-				hasContent = true
+			if rect, err := d.doc.Bound(i); err == nil && rect.Dx() > 50 && rect.Dy() > 50 {
+				// Page has non-trivial bounds — verify it actually has visual content
+				// by rendering it (only for text-empty pages, which are few).
+				if d.pageHasVisualContent(i) {
+					hasContent = true
+				}
 			}
 		}
 
@@ -339,6 +358,8 @@ func (d *DocumentViewer) Run() bool {
 				d.showHelp(inputChan)
 			case -4:
 				d.showDebugInfo(inputChan)
+			case -5:
+				d.showChapterList(inputChan)
 			}
 			d.displayCurrentPage()
 		case page := <-pageChan:
@@ -522,7 +543,7 @@ func (d *DocumentViewer) checkAndReload() bool {
 	return false
 }
 
-// handleInput returns: 0 = continue, 1 = quit, -1 = search, -2 = goto page
+// handleInput returns: 0 = continue, 1 = quit, -1 = search, -2 = goto page, -5 = chapter list
 func (d *DocumentViewer) handleInput(c byte) int {
 	switch c {
 	case 'q':
@@ -558,6 +579,12 @@ func (d *DocumentViewer) handleInput(c byte) int {
 		}
 	case 'g':
 		return -2 // signal: go to page
+	case 'c':
+		return -5 // signal: show chapter list
+	case '>':
+		d.nextChapter()
+	case '<':
+		d.prevChapter()
 	case 'h', '?':
 		return -3 // signal: show help
 	case 't':
@@ -794,6 +821,90 @@ func (d *DocumentViewer) toggleViewMode() {
 	}
 }
 
+// loadChapters extracts the table of contents from the document.
+func (d *DocumentViewer) loadChapters() {
+	outline, err := d.doc.ToC()
+	if err != nil || len(outline) == 0 {
+		d.chapters = nil
+		return
+	}
+	d.chapters = make([]Chapter, 0, len(outline))
+	for _, entry := range outline {
+		// entry.Page is 0-indexed from MuPDF. Skip entries with Page < 0 (URI-only).
+		page := entry.Page
+		if page < 0 {
+			page = 0
+		}
+		d.chapters = append(d.chapters, Chapter{
+			Title: entry.Title,
+			Page:  page,
+			Level: entry.Level,
+		})
+	}
+}
+
+// updateCurrentChapter sets currentChapter based on current page position.
+func (d *DocumentViewer) updateCurrentChapter() {
+	if len(d.chapters) == 0 {
+		return
+	}
+	actualPage := d.textPages[d.currentPage]
+	d.currentChapter = 0
+	for i, ch := range d.chapters {
+		if ch.Page <= actualPage {
+			d.currentChapter = i
+		} else {
+			break
+		}
+	}
+}
+
+// nextChapter jumps to the start of the next chapter.
+func (d *DocumentViewer) nextChapter() {
+	if len(d.chapters) == 0 {
+		return
+	}
+	d.updateCurrentChapter()
+	if d.currentChapter < len(d.chapters)-1 {
+		d.currentChapter++
+		d.goToChapterPage(d.chapters[d.currentChapter].Page)
+	}
+}
+
+// prevChapter jumps to the start of the previous chapter.
+func (d *DocumentViewer) prevChapter() {
+	if len(d.chapters) == 0 {
+		return
+	}
+	d.updateCurrentChapter()
+	if d.currentChapter > 0 {
+		d.currentChapter--
+		d.goToChapterPage(d.chapters[d.currentChapter].Page)
+	}
+}
+
+// goToChapterPage navigates to a 0-indexed document page, finding the closest
+// entry in textPages.
+func (d *DocumentViewer) goToChapterPage(targetPage int) {
+	// Exact match first
+	for i, p := range d.textPages {
+		if p == targetPage {
+			d.currentPage = i
+			return
+		}
+	}
+	// Closest page at or after target
+	for i, p := range d.textPages {
+		if p >= targetPage {
+			d.currentPage = i
+			return
+		}
+	}
+	// Beyond all pages — go to last
+	if len(d.textPages) > 0 {
+		d.currentPage = len(d.textPages) - 1
+	}
+}
 
 func (d *DocumentViewer) goToPage(inputChan <-chan byte) {
 	_, rows := d.getTerminalSize()
