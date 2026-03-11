@@ -1,10 +1,14 @@
-# pdf-cli
+
+<h1 align=center>pdf-cli</h1>
+
+<div align=center>
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev)
-
 [![Stars](https://img.shields.io/github/stars/Yujonpradhananga/pdf-cli?style=social)](https://github.com/Yujonpradhananga/pdf-cli/stargazers)
 [![Latest Release](https://img.shields.io/github/v/release/Yujonpradhananga/pdf-cli)](https://github.com/Yujonpradhananga/pdf-cli/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/Yujonpradhananga/pdf-cli)](https://github.com/Yujonpradhananga/pdf-cli/commits/main)
+
+</div>
 A terminal-based PDF, EPUB, and DOCX viewer with fuzzy file search, high-resolution image rendering, auto-reload for LaTeX workflows, and intelligent text reflow.
 
 ## Screenshots
