@@ -830,8 +830,12 @@ func (d *DocumentViewer) loadChapters() {
 	}
 	d.chapters = make([]Chapter, 0, len(outline))
 	for _, entry := range outline {
-		// entry.Page is 0-indexed from MuPDF. Skip entries with Page < 0 (URI-only).
 		page := entry.Page
+		// For EPUB/HTML, the outline uses URIs instead of page numbers
+		// (Page will be -1). Resolve URIs to flat page numbers via MuPDF.
+		if page < 0 && entry.URI != "" {
+			page = resolveLink(d.doc, entry.URI)
+		}
 		if page < 0 {
 			page = 0
 		}

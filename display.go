@@ -666,7 +666,7 @@ selectChapter:
 	if _, err := fmt.Sscanf(string(input), "%d", &num); err == nil {
 		if num >= 1 && num <= len(d.chapters) {
 			d.currentChapter = num - 1
-			d.jumpToPage(d.chapters[d.currentChapter].Page + 1)
+			d.goToChapterPage(d.chapters[d.currentChapter].Page)
 		}
 	}
 }
