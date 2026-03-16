@@ -7,7 +7,7 @@ runCommand "pdf-cli-2.0" {
   mkdir -p $out/bin
   cp ${fetchurl {
     url = "https://github.com/Yujonpradhananga/pdf-cli/releases/download/v.2.0/pdf-cli";
-    sha256 = "sha256-gw5SgFtymqcEO0Oz4eFlI0OaQtaexvuGQAQVzpyz1E0=";
+    hash = "sha256-JKQBouz1Qum7IE+8+vgOTi5/j1FovesmE0cOqrlsCjk=";
   }} $out/bin/.pdf-cli-unwrapped
   chmod 755 $out/bin/.pdf-cli-unwrapped
   
