@@ -46,6 +46,7 @@ A terminal-based PDF, EPUB and DOCX viewer with fuzzy file search, high-resoluti
 | `d` | Show debug info |
 | `h` | Show help |
 | `q` | Quit |
+| `2` | Cycle page modes |
 
 ## Installation
 
@@ -82,7 +83,6 @@ home.packages = with pkgs; [
 ```bash
 # Clone this repository
 git clone https://github.com/Yujonpradhananga/pdf-cli
-cd pdf-cli
 
 # Install dependencies
 go mod tidy
