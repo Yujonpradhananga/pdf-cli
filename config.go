@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// DocConfig holds per-document settings that persist across sessions.
+// DocConfig holds per-document settings that persists.
 type DocConfig struct {
 	FitMode       string  `json:"fit_mode"`
 	ScaleFactor   float64 `json:"scale_factor"`
@@ -38,7 +38,6 @@ func configPath(absPath string) string {
 }
 
 // loadDocConfig loads persisted settings for a document, returning defaults if
-// no saved config exists.
 func loadDocConfig(absPath string) DocConfig {
 	cfg := DocConfig{
 		FitMode:       "height",
@@ -53,7 +52,6 @@ func loadDocConfig(absPath string) DocConfig {
 
 	_ = json.Unmarshal(data, &cfg)
 
-	// Sanity-check loaded values
 	if cfg.ScaleFactor < 0.1 || cfg.ScaleFactor > 2.0 {
 		cfg.ScaleFactor = 1.0
 	}
