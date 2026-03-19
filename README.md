@@ -78,9 +78,25 @@ home.packages = with pkgs; [
 ];
 ```
 
+<<<<<<< Updated upstream
 ### Arch Linux Installation
 
 Package is coming to the AUR soon.
+=======
+### Arch Linux Installation (AUR)
+
+Using yay
+
+```bash
+yay -S pdf-cli
+```
+
+Using paru
+
+```
+paru -S pdf-cli
+```
+>>>>>>> Stashed changes
 
 ### Building from source
 
