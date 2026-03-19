@@ -78,7 +78,6 @@ home.packages = with pkgs; [
 ];
 ```
 
-<<<<<<< Updated upstream
 ### Arch Linux Installation
 
 Package is coming to the AUR soon.
