@@ -96,7 +96,6 @@ Using paru
 ```
 paru -S pdf-cli
 ```
->>>>>>> Stashed changes
 
 ### Building from source
 
