@@ -78,6 +78,10 @@ home.packages = with pkgs; [
 ];
 ```
 
+### Arch Linux Installation
+
+Package is coming to the AUR soon.
+
 ### Building from source
 
 ```bash
