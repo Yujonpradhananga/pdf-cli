@@ -80,10 +80,6 @@ home.packages = with pkgs; [
 
 ### Arch Linux Installation
 
-Package is coming to the AUR soon.
-=======
-### Arch Linux Installation (AUR)
-
 Using yay
 
 ```bash
