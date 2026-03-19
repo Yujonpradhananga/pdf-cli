@@ -80,7 +80,17 @@ home.packages = with pkgs; [
 
 ### Arch Linux Installation
 
-Package is coming to the AUR soon.
+Using yay
+
+```bash
+yay -S pdf-cli
+```
+
+Using paru
+
+```
+paru -S pdf-cli
+```
 
 ### Building from source
 
