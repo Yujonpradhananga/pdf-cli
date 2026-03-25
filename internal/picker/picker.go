@@ -1,4 +1,4 @@
-package main
+package picker
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"golang.org/x/term"
 )
 
+// FilePicker provides a TUI for selecting files with fuzzy search.
 type FilePicker struct {
 	searcher      *FileSearcher
 	query         string
@@ -19,6 +20,7 @@ type FilePicker struct {
 	oldState      *term.State
 }
 
+// NewFilePicker creates a new FilePicker with the given searcher.
 func NewFilePicker(searcher *FileSearcher) *FilePicker {
 	width, height, _ := term.GetSize(int(os.Stdout.Fd()))
 	return &FilePicker{
@@ -31,6 +33,7 @@ func NewFilePicker(searcher *FileSearcher) *FilePicker {
 	}
 }
 
+// Run displays the picker and returns the selected file path.
 func (fp *FilePicker) Run() (string, error) {
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -39,7 +42,7 @@ func (fp *FilePicker) Run() (string, error) {
 	fp.oldState = oldState
 	defer term.Restore(int(os.Stdin.Fd()), oldState)
 	fmt.Print("\033[?25l")
-	defer fmt.Print("\033[?25h") // Show cursor on exit
+	defer fmt.Print("\033[?25h")
 	fp.updateResults()
 	for {
 		fp.render()
@@ -114,13 +117,11 @@ func (fp *FilePicker) updateResults() {
 }
 
 func (fp *FilePicker) ensureSelectedVisible() {
-	// Account for: header (3) + query (1) + separator (1) + "Found X files" (2) + footer (2)
-	// Total overhead: 9 lines
 	visibleLines := fp.termHeight - 9
 	if visibleLines < 1 {
 		visibleLines = 1
 	}
-	
+
 	if fp.selectedIndex < fp.displayOffset {
 		fp.displayOffset = fp.selectedIndex
 	} else if fp.selectedIndex >= fp.displayOffset+visibleLines {
@@ -136,14 +137,12 @@ func (fp *FilePicker) render() {
 	fmt.Printf("\033[1;32m>\033[0m %s\033[0m\r\n", fp.query)
 	fmt.Print(strings.Repeat("─", fp.termWidth))
 	fmt.Print("\r\n")
-	
-	// Account for: header (3) + query (1) + separator (1) + "Found X files" (2) + footer (2)
-	// Total overhead: 9 lines
+
 	visibleLines := fp.termHeight - 9
 	if visibleLines < 1 {
 		visibleLines = 1
 	}
-	
+
 	if len(fp.results) == 0 {
 		fmt.Print("\033[2m  No files found\033[0m\r\n")
 		fmt.Print("\r\n")
@@ -157,13 +156,13 @@ func (fp *FilePicker) render() {
 		for i := fp.displayOffset; i < endIndex; i++ {
 			result := fp.results[i]
 			if i == fp.selectedIndex {
-				fmt.Print("\033[7m► ") // Reverse video
+				fmt.Print("\033[7m► ")
 				fmt.Print(result.HighlightMatches())
-				fmt.Print("\033[0m\r\n") // Use CRLF
+				fmt.Print("\033[0m\r\n")
 			} else {
 				fmt.Print("  ")
 				fmt.Print(result.HighlightMatches())
-				fmt.Print("\r\n") // Use CRLF
+				fmt.Print("\r\n")
 			}
 		}
 		if len(fp.results) > visibleLines {

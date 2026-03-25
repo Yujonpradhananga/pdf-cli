@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"crypto/md5"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// DocConfig holds per-document settings that persists.
+// DocConfig holds per-document settings that persist.
 type DocConfig struct {
 	FitMode       string  `json:"fit_mode"`
 	ScaleFactor   float64 `json:"scale_factor"`
@@ -22,8 +22,8 @@ type DocConfig struct {
 	CropRight     float64 `json:"crop_right"`
 }
 
-// configDir returns the directory used to store per-document config files.
-func configDir() string {
+// Dir returns the directory used to store per-document config files.
+func Dir() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = os.TempDir()
@@ -31,21 +31,21 @@ func configDir() string {
 	return filepath.Join(dir, "docviewer")
 }
 
-// configPath returns the config file path for a given document (by absolute path).
-func configPath(absPath string) string {
+// Path returns the config file path for a given document (by absolute path).
+func Path(absPath string) string {
 	hash := md5.Sum([]byte(absPath))
-	return filepath.Join(configDir(), fmt.Sprintf("%x.json", hash))
+	return filepath.Join(Dir(), fmt.Sprintf("%x.json", hash))
 }
 
-// loadDocConfig loads persisted settings for a document, returning defaults if
-func loadDocConfig(absPath string) DocConfig {
+// Load loads persisted settings for a document, returning defaults if not found.
+func Load(absPath string) DocConfig {
 	cfg := DocConfig{
 		FitMode:       "height",
 		ScaleFactor:   1.0,
 		HTMLPageWidth: 1000,
 	}
 
-	data, err := os.ReadFile(configPath(absPath))
+	data, err := os.ReadFile(Path(absPath))
 	if err != nil {
 		return cfg
 	}
@@ -62,27 +62,9 @@ func loadDocConfig(absPath string) DocConfig {
 	return cfg
 }
 
-// saveConfig persists the current document settings to disk.
-func (d *DocumentViewer) saveConfig() {
-	absPath, err := filepath.Abs(d.path)
-	if err != nil {
-		return
-	}
-
-	cfg := DocConfig{
-		FitMode:       d.fitMode,
-		ScaleFactor:   d.scaleFactor,
-		DarkMode:      d.darkMode,
-		DualPageMode:  d.dualPageMode,
-		ForceMode:     d.forceMode,
-		HTMLPageWidth: d.htmlPageWidth,
-		CropTop:       d.cropTop,
-		CropBottom:    d.cropBottom,
-		CropLeft:      d.cropLeft,
-		CropRight:     d.cropRight,
-	}
-
-	dir := configDir()
+// Save persists document settings to disk.
+func Save(absPath string, cfg DocConfig) {
+	dir := Dir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return
 	}
@@ -92,5 +74,5 @@ func (d *DocumentViewer) saveConfig() {
 		return
 	}
 
-	_ = os.WriteFile(configPath(absPath), data, 0o644)
+	_ = os.WriteFile(Path(absPath), data, 0o644)
 }

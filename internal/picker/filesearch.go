@@ -1,4 +1,4 @@
-package main
+package picker
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
+// FileResult represents a file found by the searcher.
 type FileResult struct {
 	Path         string
 	RelativePath string
@@ -17,29 +18,31 @@ type FileResult struct {
 	Matches      []int
 }
 
+// FileSearcher scans for and searches supported document files.
 type FileSearcher struct {
 	files []string
 }
 
+// NewFileSearcher creates a new FileSearcher.
 func NewFileSearcher() *FileSearcher {
 	return &FileSearcher{
 		files: []string{},
 	}
 }
 
+// ScanDirectories scans common directories for PDF/EPUB/DOCX files.
 func (fs *FileSearcher) ScanDirectories() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	// Common directories to search
 	searchDirs := []string{
 		homeDir,
 		filepath.Join(homeDir, "Documents"),
 		filepath.Join(homeDir, "Downloads"),
 		filepath.Join(homeDir, "Desktop"),
-		".", // Current directory
+		".",
 		"/usr/share/doc",
 		filepath.Join(homeDir, ".local/share/books"),
 	}
@@ -47,7 +50,6 @@ func (fs *FileSearcher) ScanDirectories() error {
 	fmt.Println("Scanning for PDF and EPUB files...")
 	fmt.Println("This may take a moment on first run...")
 
-	// Use a map to track unique files and avoid duplicates
 	uniqueFiles := make(map[string]bool)
 
 	for _, dir := range searchDirs {
@@ -55,13 +57,11 @@ func (fs *FileSearcher) ScanDirectories() error {
 			continue
 		}
 
-		// Use filepath.Walk for simple, straightforward directory traversal
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
-				return nil // Skip errors
+				return nil
 			}
 
-			// Skip hidden files and directories
 			if strings.HasPrefix(filepath.Base(path), ".") {
 				if info.IsDir() {
 					return filepath.SkipDir
@@ -69,12 +69,10 @@ func (fs *FileSearcher) ScanDirectories() error {
 				return nil
 			}
 
-			// Skip common large directories
 			if info.IsDir() && (info.Name() == "node_modules" || info.Name() == "vendor") {
 				return filepath.SkipDir
 			}
 
-			// Only collect supported files
 			if !info.IsDir() {
 				ext := strings.ToLower(filepath.Ext(path))
 				if ext == ".pdf" || ext == ".epub" || ext == ".docx" {
@@ -86,7 +84,6 @@ func (fs *FileSearcher) ScanDirectories() error {
 		})
 	}
 
-	// Convert map to slice
 	fs.files = make([]string, 0, len(uniqueFiles))
 	for file := range uniqueFiles {
 		fs.files = append(fs.files, file)
@@ -96,7 +93,7 @@ func (fs *FileSearcher) ScanDirectories() error {
 	return nil
 }
 
-// ScanDirectory scans a single directory for PDF/EPUB/DOCX files
+// ScanDirectory scans a single directory for supported document files.
 func (fs *FileSearcher) ScanDirectory(dir string) error {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -105,20 +102,17 @@ func (fs *FileSearcher) ScanDirectory(dir string) error {
 
 	var files []string
 
-	// Use filepath.Walk for simple directory traversal
 	err = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // Skip errors
+			return nil
 		}
 
-		// Skip hidden files and directories
 		if strings.HasPrefix(filepath.Base(path), ".") {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-
 
 		ext := strings.ToLower(filepath.Ext(path))
 		if ext == ".pdf" || ext == ".epub" || ext == ".docx" || ext == ".html" || ext == ".htm" {
@@ -135,6 +129,7 @@ func (fs *FileSearcher) ScanDirectory(dir string) error {
 	return nil
 }
 
+// Search performs a fuzzy search on the file list.
 func (fs *FileSearcher) Search(query string) []FileResult {
 	if query == "" {
 		results := make([]FileResult, 0, len(fs.files))
@@ -187,6 +182,7 @@ func (fs *FileSearcher) getDisplayPath(path string) string {
 	return path
 }
 
+// GetAllFiles returns all found files as FileResults.
 func (fs *FileSearcher) GetAllFiles() []FileResult {
 	results := make([]FileResult, 0, len(fs.files))
 	for _, file := range fs.files {
@@ -198,6 +194,7 @@ func (fs *FileSearcher) GetAllFiles() []FileResult {
 	return results
 }
 
+// HighlightMatches returns the file path with matched characters highlighted.
 func (fr *FileResult) HighlightMatches() string {
 	if len(fr.Matches) == 0 {
 		return fr.RelativePath
