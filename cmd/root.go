@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"pdf-cli/internal/picker"
+	"pdf-cli/internal/ui"
 	"pdf-cli/internal/viewer"
 )
 
@@ -20,7 +21,7 @@ func Execute() {
 			return
 		}
 		if arg == "--version" || arg == "-v" {
-			fmt.Println("docviewer 1.0.0")
+			fmt.Println("pdf-cli 2.0.0")
 			return
 		}
 	}
@@ -38,26 +39,28 @@ func Execute() {
 		arg = filepath.Join(homeDir, arg[2:])
 	}
 
-	// When no argument given, do a broad search across common directories
+	// When no argument given, show the main menu
 	if !hasArg {
 		for {
-			filePath, err := selectFileWithPickerBroadSearch()
-			if err != nil {
-				fmt.Printf("File selection cancelled: %v\n", err)
-				return
-			}
-			if filePath == "" {
-				return
-			}
+			result := ui.RunMainMenu()
+			fmt.Print("\033[2J\033[H") // clear screen after menu
 
-			v := viewer.NewDocumentViewer(filePath)
-			if err := v.Open(); err != nil {
-				fmt.Printf("Error opening file: %v\n", err)
+			switch result.Selection {
+			case -1: // Quit
 				return
-			}
-
-			wantBack := v.Run()
-			if !wantBack {
+			case 0: // Browse Files (broad search)
+				if !runWithBroadSearch() {
+					return
+				}
+			case 1: // Enter Directory
+				dir := result.DirPath
+				if dir == "" {
+					continue // no path entered, back to menu
+				}
+				if !runWithDirectoryPicker(dir) {
+					return
+				}
+			default:
 				return
 			}
 		}
@@ -124,10 +127,10 @@ func Execute() {
 }
 
 func printHelp() {
-	help := `docviewer - Terminal-based document viewer
+	help := `pdf-cli - Terminal-based document viewer
 
 USAGE:
-    docviewer [OPTIONS] [PATH]
+    pdf-cli [OPTIONS] [PATH]
 
 ARGUMENTS:
     [PATH]    File or directory to open (default: current directory)
@@ -171,13 +174,64 @@ KEYBOARD SHORTCUTS:
         q                        Quit
 
 EXAMPLES:
-    docviewer                    Search current directory
-    docviewer ~/Documents        Search specific directory
-    docviewer paper.pdf          Open file directly
+    pdf-cli                    Search current directory
+    pdf-cli ~/Documents        Search specific directory
+    pdf-cli paper.pdf          Open file directly
 
 For LaTeX workflows, the viewer auto-reloads when the file changes.
 `
 	fmt.Print(help)
+}
+
+// runWithBroadSearch scans common directories and opens a file picker.
+// Returns true if the user wants to go back to the main menu.
+func runWithBroadSearch() bool {
+	for {
+		filePath, err := selectFileWithPickerBroadSearch()
+		if err != nil {
+			return true // go back to menu
+		}
+		if filePath == "" {
+			return true
+		}
+
+		v := viewer.NewDocumentViewer(filePath)
+		if err := v.Open(); err != nil {
+			fmt.Printf("Error opening file: %v\n", err)
+			return false
+		}
+
+		wantBack := v.Run()
+		if !wantBack {
+			return false
+		}
+		// Loop: user pressed 'b' in viewer, show picker again
+	}
+}
+
+// runWithDirectoryPicker scans the given directory and opens a file picker.
+// Returns true if the user wants to go back to the main menu.
+func runWithDirectoryPicker(dir string) bool {
+	for {
+		filePath, err := selectFileWithPickerInDir(dir)
+		if err != nil {
+			return true // go back to menu
+		}
+		if filePath == "" {
+			return true
+		}
+
+		v := viewer.NewDocumentViewer(filePath)
+		if err := v.Open(); err != nil {
+			fmt.Printf("Error opening file: %v\n", err)
+			return false
+		}
+
+		wantBack := v.Run()
+		if !wantBack {
+			return false
+		}
+	}
 }
 
 func selectFileWithPickerInDir(dir string) (string, error) {
