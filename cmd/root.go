@@ -57,6 +57,29 @@ func Execute() {
 				if dir == "" {
 					continue // no path entered, back to menu
 				}
+				// Validate the directory exists
+				info, err := os.Stat(dir)
+				if err != nil {
+					fmt.Printf("\n  Directory not found: %s\n  Press any key to go back...\n", dir)
+					buf := make([]byte, 1)
+					os.Stdin.Read(buf)
+					continue
+				}
+				if !info.IsDir() {
+					// User entered a file path directly — try to open it
+					v := viewer.NewDocumentViewer(dir)
+					if err := v.Open(); err != nil {
+						fmt.Printf("\n  Error opening file: %v\n  Press any key to go back...\n", err)
+						buf := make([]byte, 1)
+						os.Stdin.Read(buf)
+						continue
+					}
+					wantBack := v.Run()
+					if !wantBack {
+						return
+					}
+					continue
+				}
 				if !runWithDirectoryPicker(dir) {
 					return
 				}
@@ -215,6 +238,9 @@ func runWithDirectoryPicker(dir string) bool {
 	for {
 		filePath, err := selectFileWithPickerInDir(dir)
 		if err != nil {
+			fmt.Printf("\n  %v\n  Press any key to go back...\n", err)
+			buf := make([]byte, 1)
+			os.Stdin.Read(buf)
 			return true // go back to menu
 		}
 		if filePath == "" {

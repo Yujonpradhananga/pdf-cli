@@ -267,28 +267,52 @@ func RunMainMenu() MenuResult {
 }
 
 // promptForDirectory shows a text input for the user to type a directory path.
+// Supports shell-like Tab completion: completes common prefix, shows candidates, cycles through them.
 // Returns empty string if cancelled.
 func promptForDirectory() string {
 	width, height := getTermSize()
 
-	// Draw the prompt at the bottom area of the screen
+	// Layout
 	promptRow := height/2 + 6
-	fmt.Printf("\033[%d;1H\033[K", promptRow)
-	fmt.Printf("%s", centerText(fmt.Sprintf("%s%sEnter directory path:%s ", fgBrCyan, bold, reset), width))
+	inputRow := promptRow + 1
+	candidateStartRow := promptRow + 3
+	helpRow := promptRow + 2
 
-	fmt.Printf("\033[%d;1H\033[K", promptRow+1)
-	promptPrefix := "  > "
 	padLeft := (width - 50) / 2
 	if padLeft < 2 {
 		padLeft = 2
 	}
-	fmt.Printf("%s%s", strings.Repeat(" ", padLeft), promptPrefix)
+	promptPrefix := "  > "
 
-	fmt.Printf("\033[%d;1H\033[K", promptRow+3)
-	fmt.Printf("%s", centerText(fmt.Sprintf("%sESC to cancel  •  Enter to confirm  •  ~ expands to home%s", dim, reset), width))
+	// Draw static parts
+	drawPromptChrome := func() {
+		fmt.Printf("\033[%d;1H\033[K", promptRow)
+		fmt.Printf("%s", centerText(fmt.Sprintf("%s%sEnter directory path:%s ", fgBrCyan, bold, reset), width))
+		fmt.Printf("\033[%d;1H\033[K", helpRow)
+		fmt.Printf("%s", centerText(fmt.Sprintf("%sESC cancel • Enter confirm • Tab complete • ~ = home%s", dim, reset), width))
+	}
 
-	// Read line character by character
+	redrawInput := func(input string) {
+		fmt.Printf("\033[%d;1H\033[K", inputRow)
+		fmt.Printf("%s%s%s", strings.Repeat(" ", padLeft), promptPrefix, input)
+	}
+
+	clearCandidates := func() {
+		for row := candidateStartRow; row < height-1; row++ {
+			fmt.Printf("\033[%d;1H\033[K", row)
+		}
+	}
+
+	drawPromptChrome()
+
 	var input []byte
+	var lastTabInput string     // input when Tab was last pressed
+	var tabCycleIndex int       // which candidate we're cycling through (-1 = common prefix)
+	var tabCandidates []string  // cached candidate list for cycling
+	var tabBaseDir string       // base dir for current tab session
+
+	redrawInput("")
+
 	for {
 		buf := make([]byte, 1)
 		n, _ := os.Stdin.Read(buf)
@@ -302,90 +326,228 @@ func promptForDirectory() string {
 			if result == "" {
 				return ""
 			}
-			// Expand ~
-			if strings.HasPrefix(result, "~/") {
-				if home, err := os.UserHomeDir(); err == nil {
-					result = home + result[1:]
-				}
-			} else if result == "~" {
-				if home, err := os.UserHomeDir(); err == nil {
-					result = home
-				}
-			}
-			return result
+			return expandTilde(result)
 		case 27: // ESC
 			return ""
 		case 127, 8: // Backspace
 			if len(input) > 0 {
 				input = input[:len(input)-1]
-				fmt.Printf("\033[%d;1H\033[K", promptRow+1)
-				fmt.Printf("%s%s%s", strings.Repeat(" ", padLeft), promptPrefix, string(input))
+				clearCandidates()
+				lastTabInput = ""
+				tabCandidates = nil
+				redrawInput(string(input))
 			}
-		case 9: // Tab — try to complete path
+		case 9: // Tab
 			partial := string(input)
-			if completed := tabComplete(partial); completed != "" {
-				input = []byte(completed)
-				fmt.Printf("\033[%d;1H\033[K", promptRow+1)
-				fmt.Printf("%s%s%s", strings.Repeat(" ", padLeft), promptPrefix, string(input))
+			if partial == "" {
+				partial = "./"
+				input = []byte(partial)
 			}
+
+			currentInput := string(input)
+
+			// Check if this is a repeated Tab press on the same input
+			if currentInput == lastTabInput && len(tabCandidates) > 0 {
+				// Cycle to next candidate
+				tabCycleIndex++
+				if tabCycleIndex >= len(tabCandidates) {
+					tabCycleIndex = 0
+				}
+				candidate := tabCandidates[tabCycleIndex]
+				completed := tabBaseDir + candidate + "/"
+				completed = collapseTilde(completed)
+				input = []byte(completed)
+				redrawInput(string(input))
+				// Highlight current candidate in the list
+				drawCandidateList(tabCandidates, tabCycleIndex, candidateStartRow, padLeft, height)
+				lastTabInput = string(input)
+				continue
+			}
+
+			// Fresh Tab press — find matches
+			expanded := expandTilde(partial)
+			dir, prefix := splitDirPrefix(expanded)
+
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				continue
+			}
+
+			var matches []string
+			for _, e := range entries {
+				name := e.Name()
+				if !e.IsDir() {
+					continue
+				}
+				if strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") {
+					continue // skip hidden unless user typed a dot
+				}
+				if strings.HasPrefix(name, prefix) {
+					matches = append(matches, name)
+				}
+			}
+
+			clearCandidates()
+
+			if len(matches) == 0 {
+				// No matches — beep or do nothing
+				continue
+			}
+
+			if len(matches) == 1 {
+				// Single match — complete fully
+				completed := dir + matches[0] + "/"
+				completed = collapseTilde(completed)
+				input = []byte(completed)
+				redrawInput(string(input))
+				lastTabInput = ""
+				tabCandidates = nil
+				continue
+			}
+
+			// Multiple matches — complete common prefix first
+			common := longestCommonPrefix(matches)
+			if len(common) > len(prefix) {
+				// We can extend the input with the common prefix
+				completed := dir + common
+				completed = collapseTilde(completed)
+				input = []byte(completed)
+				redrawInput(string(input))
+			}
+
+			// Show candidates
+			tabCandidates = matches
+			tabBaseDir = dir
+			tabCycleIndex = -1 // not cycling yet, next Tab will start cycling
+			lastTabInput = string(input)
+
+			drawCandidateList(matches, -1, candidateStartRow, padLeft, height)
+
 		default:
 			if buf[0] >= 32 && buf[0] < 127 {
 				input = append(input, buf[0])
 				fmt.Printf("%c", buf[0])
+				// Clear candidate list when user types
+				if len(tabCandidates) > 0 {
+					clearCandidates()
+					lastTabInput = ""
+					tabCandidates = nil
+				}
 			}
 		}
 	}
 }
 
-// tabComplete attempts basic path completion.
-func tabComplete(partial string) string {
-	if partial == "" {
+// drawCandidateList renders the tab-completion candidates below the prompt.
+func drawCandidateList(candidates []string, highlighted int, startRow, padLeft, maxHeight int) {
+	maxShow := maxHeight - startRow - 1
+	if maxShow < 1 {
+		maxShow = 1
+	}
+	if maxShow > 12 {
+		maxShow = 12
+	}
+
+	// Determine columns — try to fit candidates side by side
+	maxNameLen := 0
+	for _, c := range candidates {
+		if len(c) > maxNameLen {
+			maxNameLen = len(c)
+		}
+	}
+	colWidth := maxNameLen + 3
+	if colWidth < 10 {
+		colWidth = 10
+	}
+
+	termWidth, _ := getTermSize()
+	availWidth := termWidth - padLeft - 4
+	numCols := availWidth / colWidth
+	if numCols < 1 {
+		numCols = 1
+	}
+
+	row := startRow
+	col := 0
+	for i, name := range candidates {
+		if row-startRow >= maxShow {
+			fmt.Printf("\033[%d;%dH%s... and %d more%s",
+				row, padLeft+4, dim, len(candidates)-i, reset)
+			break
+		}
+
+		if col == 0 {
+			fmt.Printf("\033[%d;1H\033[K", row)
+			fmt.Printf("\033[%d;%dH", row, padLeft+4)
+		}
+
+		display := name + "/"
+		if i == highlighted {
+			fmt.Printf("%s%s%-*s%s", fgBrCyan, bold, colWidth, display, reset)
+		} else {
+			fmt.Printf("%s%-*s%s", dim, colWidth, display, reset)
+		}
+
+		col++
+		if col >= numCols {
+			col = 0
+			row++
+		}
+	}
+}
+
+// expandTilde expands ~ to the home directory.
+func expandTilde(path string) string {
+	if path == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home
+		}
+	}
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home + path[1:]
+		}
+	}
+	return path
+}
+
+// collapseTilde replaces the home directory prefix with ~.
+func collapseTilde(path string) string {
+	if home, err := os.UserHomeDir(); err == nil {
+		if strings.HasPrefix(path, home+"/") {
+			return "~" + path[len(home):]
+		}
+		if path == home {
+			return "~"
+		}
+	}
+	return path
+}
+
+// splitDirPrefix splits a path into the directory part and the incomplete name being typed.
+// e.g. "/home/user/Doc" → ("/home/user/", "Doc")
+// e.g. "/home/user/Documents/" → ("/home/user/Documents/", "")
+func splitDirPrefix(expanded string) (string, string) {
+	if strings.HasSuffix(expanded, "/") {
+		return expanded, ""
+	}
+	idx := strings.LastIndex(expanded, "/")
+	if idx < 0 {
+		return "./", expanded
+	}
+	return expanded[:idx+1], expanded[idx+1:]
+}
+
+// longestCommonPrefix returns the longest common prefix of a list of strings.
+func longestCommonPrefix(strs []string) string {
+	if len(strs) == 0 {
 		return ""
 	}
-
-	// Expand ~
-	expanded := partial
-	if strings.HasPrefix(expanded, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			expanded = home + expanded[1:]
+	prefix := strs[0]
+	for _, s := range strs[1:] {
+		for len(prefix) > 0 && !strings.HasPrefix(s, prefix) {
+			prefix = prefix[:len(prefix)-1]
 		}
 	}
-
-	dir := expanded
-	prefix := ""
-
-	// If it doesn't end with /, split into dir + prefix
-	if !strings.HasSuffix(expanded, "/") {
-		dir = expanded[:strings.LastIndex(expanded, "/")+1]
-		prefix = expanded[strings.LastIndex(expanded, "/")+1:]
-	}
-
-	if dir == "" {
-		dir = "."
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-
-	var matches []string
-	for _, e := range entries {
-		if e.IsDir() && strings.HasPrefix(e.Name(), prefix) {
-			matches = append(matches, e.Name())
-		}
-	}
-
-	if len(matches) == 1 {
-		result := dir + matches[0] + "/"
-		// Convert back to ~/
-		if home, err := os.UserHomeDir(); err == nil {
-			if strings.HasPrefix(result, home) {
-				result = "~" + result[len(home):]
-			}
-		}
-		return result
-	}
-
-	return ""
+	return prefix
 }
