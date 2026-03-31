@@ -66,13 +66,13 @@ func (d *DocumentViewer) savePageAsImage(pageNum, termWidth, termHeight int, ter
 	targetPixelWidth := int(float64(effectiveWidth) * pixelsPerChar * scale)
 	targetPixelHeight := int(float64(effectiveHeight) * pixelsPerLine * scale)
 
-	testImg, err := d.doc.ImageDPI(pageNum, 72.0)
+	// Use Bound() to get page dimensions in points (72 DPI) without rasterizing
+	pageRect, err := d.doc.Bound(pageNum)
 	if err != nil {
 		return "", 0, 0, 0, 0, err
 	}
-	testBounds := testImg.Bounds()
-	pageWidthAt72 := testBounds.Dx()
-	pageHeightAt72 := testBounds.Dy()
+	pageWidthAt72 := pageRect.Dx()
+	pageHeightAt72 := pageRect.Dy()
 	aspectRatio := float64(pageHeightAt72) / float64(pageWidthAt72)
 
 	var finalWidth, finalHeight int
@@ -174,13 +174,13 @@ func (d *DocumentViewer) renderPageToImage(pageNum, termWidth, termHeight int, t
 	targetPixelWidth := int(float64(effectiveWidth) * pixelsPerChar * scale)
 	targetPixelHeight := int(float64(effectiveHeight) * pixelsPerLine * scale)
 
-	testImg, err := d.doc.ImageDPI(pageNum, 72.0)
+	// Use Bound() to get page dimensions in points (72 DPI) without rasterizing
+	pageRect, err := d.doc.Bound(pageNum)
 	if err != nil {
 		return nil, err
 	}
-	testBounds := testImg.Bounds()
-	pageWidthAt72 := testBounds.Dx()
-	pageHeightAt72 := testBounds.Dy()
+	pageWidthAt72 := pageRect.Dx()
+	pageHeightAt72 := pageRect.Dy()
 	aspectRatio := float64(pageHeightAt72) / float64(pageWidthAt72)
 
 	var finalWidth, finalHeight int
@@ -373,11 +373,12 @@ func (d *DocumentViewer) renderHalfPage(pageNum, termWidth, termHeight int, isBo
 	termType := d.detectTerminalType()
 	pixelsPerChar, pixelsPerLine := d.getTerminalCellSize()
 
-	testImg, err := d.doc.ImageDPI(pageNum, 72.0)
+	// Use Bound() to get page height in points (72 DPI) without rasterizing
+	pageRect, err := d.doc.Bound(pageNum)
 	if err != nil {
 		return 0
 	}
-	pageHeightAt72 := testImg.Bounds().Dy()
+	pageHeightAt72 := pageRect.Dy()
 
 	targetCropPixels := float64(termHeight) * pixelsPerLine
 	targetFullPixels := targetCropPixels / 0.55
