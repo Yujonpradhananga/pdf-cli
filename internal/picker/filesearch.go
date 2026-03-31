@@ -38,17 +38,19 @@ func (fs *FileSearcher) ScanDirectories() error {
 	}
 
 	searchDirs := []string{
-		homeDir,
 		filepath.Join(homeDir, "Documents"),
 		filepath.Join(homeDir, "Downloads"),
 		filepath.Join(homeDir, "Desktop"),
+		filepath.Join(homeDir, "Books"),
+		filepath.Join(homeDir, "Projects"),
 		".",
 		"/usr/share/doc",
 		filepath.Join(homeDir, ".local/share/books"),
 	}
 
+	const maxDepth = 5
+
 	fmt.Println("Scanning for PDF and EPUB files...")
-	fmt.Println("This may take a moment on first run...")
 
 	uniqueFiles := make(map[string]bool)
 
@@ -57,7 +59,9 @@ func (fs *FileSearcher) ScanDirectories() error {
 			continue
 		}
 
-		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		absDir, _ := filepath.Abs(dir)
+
+		filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -69,15 +73,22 @@ func (fs *FileSearcher) ScanDirectories() error {
 				return nil
 			}
 
-			if info.IsDir() && (info.Name() == "node_modules" || info.Name() == "vendor") {
-				return filepath.SkipDir
+			if info.IsDir() {
+				// Enforce max depth
+				rel, _ := filepath.Rel(absDir, path)
+				depth := strings.Count(rel, string(filepath.Separator))
+				if depth >= maxDepth {
+					return filepath.SkipDir
+				}
+				if info.Name() == "node_modules" || info.Name() == "vendor" || info.Name() == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
-			if !info.IsDir() {
-				ext := strings.ToLower(filepath.Ext(path))
-				if ext == ".pdf" || ext == ".epub" || ext == ".docx" {
-					uniqueFiles[path] = true
-				}
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == ".pdf" || ext == ".epub" || ext == ".docx" {
+				uniqueFiles[path] = true
 			}
 
 			return nil
