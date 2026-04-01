@@ -52,28 +52,10 @@ A terminal-based PDF, EPUB and DOCX viewer with fuzzy file search, high-resoluti
 
 ### NixOSNixOS Installation
 
-Add the `pdf-cli.nix` file to your nixos configuration directory, then add the overlay to your `flake.nix`:
+in your configuration.nix file add pdf-cli
 
 ```nix
-let
-  myOverlay = final: prev: {
-    pdf-cli = prev.callPackage ./pdf-cli.nix { };
-  };
-in
-```
-
-Then apply the overlay in your `nixosConfigurations`:
-
-```nix
-({ config, pkgs, ... }: {
-  nixpkgs.overlays = [ myOverlay ];
-})
-```
-
-Then in your `home.nix`:
-
-```nix
-home.packages = with pkgs; [
+environment.systemPackages = with pkgs; [
   pdf-cli
 ];
 ```
