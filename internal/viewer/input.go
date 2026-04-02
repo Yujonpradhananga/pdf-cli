@@ -103,13 +103,13 @@ func (d *DocumentViewer) handleInput(c byte) int {
 		} else {
 			d.darkMode = "smart"
 		}
-	case 'D':
+	case 'd':
 		if d.darkMode == "invert" {
 			d.darkMode = ""
 		} else {
 			d.darkMode = "invert"
 		}
-	case 'd':
+	case 'D':
 		return -4
 	case '2':
 		switch d.dualPageMode {
