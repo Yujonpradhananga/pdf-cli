@@ -308,7 +308,7 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	p("  t                   - Toggle view mode (auto/text/image)")
 	p("  f                   - Cycle fit mode (height/width/auto)")
 	p("  i                   - Toggle dark mode (smart invert, preserves hue)")
-	p("  D                   - Toggle dark mode (simple color invert)")
+	p("  D                   - Show debug info")
 	p("  +/-                 - Zoom in/out (10%-200%)")
 	p("  2                   - Cycle view (off/vertical/horizontal/half-page)")
 	p("  Shift+Left/Right    - Jump 2 pages (in dual page mode)")
@@ -321,7 +321,7 @@ func (d *DocumentViewer) showHelp(inputChan <-chan byte) {
 	p("  [                   - Crop left edge")
 	p("  ]                   - Crop right edge")
 	p("  \\                   - Reset all crops")
-	p("  d                   - Show debug info")
+	p("  d                   - Toggle dark mode (simple color invert)")
 	p("  S                   - Open in Skim")
 	p("  P                   - Open in Preview")
 	p("  O                   - Reveal in Finder")
@@ -560,4 +560,3 @@ func (d *DocumentViewer) goToChapterPage(targetPage int) {
 		d.currentPage = len(d.textPages) - 1
 	}
 }
-
